@@ -1,4 +1,4 @@
-# Obania Metrics App (RNC Impressão v3)
+# Obania Metrics App 
 
 Aplicação web para gestão operacional da área de impressão, pensada para começar simples e evoluir para um mini sistema de produção/qualidade.
 
