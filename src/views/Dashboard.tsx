@@ -24,11 +24,7 @@ import {
 } from '@/lib/db'
 import { healthIndex, sectionTotals } from '@/lib/health'
 import { taxaTone, toneVar, type Tone } from '@/lib/severity'
-
-const SECTION_COLORS: Record<string, string> = {
-  flexo: 'oklch(0.55 0.18 264)', // azul
-  roto: 'oklch(0.58 0.19 300)', // violeta
-}
+import { SECTION_COLORS } from '@/lib/colors'
 
 function machineInfo(db: Db, id: string): string {
   const m = db.machines.find((x) => x.id === id)

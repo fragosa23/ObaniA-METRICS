@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppShell, type ViewId } from '@/components/AppShell'
 import { Dashboard } from '@/views/Dashboard'
+import { Production } from '@/views/Production'
 import { loadDb } from '@/lib/db'
 
 function Placeholder({ label }: { label: string }) {
@@ -37,7 +38,7 @@ function App() {
     <TooltipProvider delayDuration={150}>
       <AppShell view={view} onNavigate={setView} dark={dark} onToggleTheme={toggleTheme}>
         {view === 'dashboard' && <Dashboard db={db} />}
-        {view === 'production' && <Placeholder label="Produção" />}
+        {view === 'production' && <Production db={db} />}
         {view === 'structure' && <Placeholder label="Estrutura operacional" />}
         {view === 'profiles' && <Placeholder label="Fichas" />}
         {view === 'stats' && <Placeholder label="Estatística" />}
