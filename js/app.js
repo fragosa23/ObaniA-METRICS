@@ -18,6 +18,8 @@ function init(){
   document.getElementById("loadExample").addEventListener("click",loadExample);
   document.getElementById("clearInputs").addEventListener("click",clearInputs);
   document.getElementById("deleteMonth").addEventListener("click",deleteCurrentMonth);
+  document.getElementById("exportBackup").addEventListener("click",downloadBackupFile);
+  document.getElementById("importBackup").addEventListener("change",handleBackupImport);
   document.getElementById("prevMonth").addEventListener("click",()=>changeMonth(-1));
   document.getElementById("nextMonth").addEventListener("click",()=>changeMonth(1));
   document.getElementById("prevYear").addEventListener("click",()=>changeYear(-1));
@@ -66,6 +68,39 @@ function deleteCurrentMonth(){
     clearInputs();
     document.getElementById("saveStatus").innerHTML=`Apagado: <b>${MONTHS[month]} ${year}</b>.`;
   }
+}
+
+function downloadBackupFile(){
+  const data=exportAllData();
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  const date=new Date().toISOString().slice(0,10);
+  a.href=url;
+  a.download=`RNC_Impressao_${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  document.getElementById("saveStatus").innerHTML="Ficheiro de dados exportado.";
+}
+
+function handleBackupImport(event){
+  const file=event.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const payload=JSON.parse(reader.result);
+      importAllData(payload);
+      loadInputMonth();
+      document.getElementById("saveStatus").innerHTML=`Importado: <b>${file.name}</b>.`;
+    }catch(err){
+      alert("Não foi possível importar o ficheiro. Verifica se é um ficheiro RNC_Impressao.json válido.");
+    }
+    event.target.value="";
+  };
+  reader.readAsText(file);
 }
 
 function clearInputs(){inputData=baseRows();renderInputs();}
