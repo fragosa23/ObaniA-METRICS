@@ -3,47 +3,36 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RNC Impressão</title>
+  <title>RNC Impressão v3</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <main class="wrap">
-    <section id="home" class="screen active">
-      <div class="hero"><h1>RNC Impressão</h1><p>Painel mensal, equipas, acumulados e comparação entre Flexografia e Rotogravura.</p></div>
-      <div class="menu-grid">
-        <button class="menu-btn" data-go="input"><b>1. Introduzir e armazenar dados</b><span>OF/RNC por máquina e equipa.</span></button>
-        <button class="menu-btn" data-go="monthly"><b>2. Relatório mensal</b><span>Ver mês a mês. Usa setas ou swipe.</span></button>
-        <button class="menu-btn" data-go="annual"><b>3. Acumulados do ano</b><span>Totais anuais por ano.</span></button>
-        <button class="menu-btn" data-go="comparison"><b>4. Comparação entre secções</b><span>OF, RNC, taxas e indicadores relativos.</span></button>
-        <button class="menu-btn" data-go="teams"><b>5. Gestão de equipas</b><span>Secção → máquina → equipa → trabalhador, com fichas e desempenho.</span></button>
-      </div>
+    <section class="hero">
+      <h1>RNC Impressão v3</h1>
+      <p>Sistema operacional para produção, qualidade, máquinas, equipas e trabalhadores.</p>
     </section>
 
-    <section id="input" class="screen">
-      <div class="hero topbar"><div><h1>Introduzir dados</h1><p>Escolhe a equipa associada a cada máquina.</p></div><button class="secondary no-print" data-go="home">Menu inicial</button></div>
-      <div class="card">
-        <h2>Dados do mês</h2>
-        <div class="grid"><div><label>Mês</label><select id="inMes"></select></div><div><label>Ano</label><input id="inAno" value="2026" type="number"></div><div><label>&nbsp;</label><button id="saveMonth">Guardar mês</button></div><div><label>&nbsp;</label><button class="secondary" id="loadMonth">Carregar mês</button></div></div>
-        <p><button class="secondary" id="loadExample">Carregar exemplo maio</button><button class="secondary" id="clearInputs">Limpar valores do ecrã</button><button class="danger" id="deleteMonth">Apagar mês guardado</button></p>
-        <div class="card backup-card no-print"><h2>Cópia de segurança</h2><p class="small">Exporta/importa um ficheiro JSON com meses, equipas e trabalhadores.</p><button id="exportBackup">Guardar ficheiro de dados</button><label class="import-label" for="importBackup">Importar ficheiro de dados</label><input id="importBackup" type="file" accept="application/json,.json"></div>
-        <div id="saveStatus" class="saved small">Os dados ficam guardados neste browser. Usa a cópia de segurança para guardar também num ficheiro.</div>
-        <table><thead><tr><th>Secção</th><th>Máquina</th><th>Equipa</th><th>Trabalhos / OF</th><th>RNC</th></tr></thead><tbody id="inputRows"></tbody></table>
-      </div>
-    </section>
+    <nav class="nav">
+      <button data-view="dashboard">Dashboard</button>
+      <button data-view="production">Produção</button>
+      <button data-view="structure">Estrutura</button>
+      <button data-view="profiles">Fichas</button>
+      <button data-view="stats">Estatística</button>
+      <button data-view="data">Dados</button>
+      <button data-view="ai">IA</button>
+    </nav>
 
-    <section id="monthly" class="screen swipe-box"><div class="hero topbar"><div><h1>Relatório mensal</h1><p>Swipe para os lados ou usa as setas.</p></div><div class="nav-btns no-print"><button class="secondary" data-go="home">Menu inicial</button><button class="secondary" onclick="window.print()">Imprimir / PDF</button></div></div><div class="card month-year-nav no-print"><button id="prevMonth">‹</button><div class="big-title" id="monthlyTitle">—</div><button id="nextMonth">›</button></div><div id="monthlyReport"></div></section>
-    <section id="annual" class="screen swipe-box"><div class="hero topbar"><div><h1>Acumulados do ano</h1><p>Swipe para os lados ou usa as setas.</p></div><div class="nav-btns no-print"><button class="secondary" data-go="home">Menu inicial</button><button class="secondary" onclick="window.print()">Imprimir / PDF</button></div></div><div class="card month-year-nav no-print"><button id="prevYear">‹</button><div class="big-title" id="annualTitle">—</div><button id="nextYear">›</button></div><div id="annualReport"></div></section>
-    <section id="comparison" class="screen swipe-box"><div class="hero topbar"><div><h1>Comparação entre secções</h1><p>OF, RNC, percentagens e indicadores relativos.</p></div><div class="nav-btns no-print"><button class="secondary" data-go="home">Menu inicial</button><button class="secondary" onclick="window.print()">Imprimir / PDF</button></div></div><div class="card month-year-nav no-print"><button id="prevCompMonth">‹</button><div class="big-title" id="comparisonTitle">—</div><button id="nextCompMonth">›</button></div><div id="comparisonReport"></div></section>
-
-    <section id="teams" class="screen">
-      <div class="hero topbar"><div><h1>Gestão de equipas</h1><p>Cria equipas/trabalhadores e pesquisa por secção, máquina, equipa ou membro.</p></div><div class="nav-btns no-print"><button class="secondary" data-go="home">Menu inicial</button><button class="secondary" onclick="window.print()">Imprimir / PDF</button></div></div>
-      <div class="row">
-        <div class="card"><h2>Criar equipa</h2><label>Nome da equipa</label><input id="teamName" placeholder="Ex: Equipa A"><label>Secção</label><select id="teamSection"></select><label>Máquina habitual</label><select id="teamMachine"></select><button id="addTeam">Adicionar equipa</button></div>
-        <div class="card"><h2>Adicionar trabalhador</h2><label>Nome</label><input id="workerName" placeholder="Nome do trabalhador"><label>Função</label><input id="workerRole" placeholder="Ex: Impressor"><label>Equipa</label><select id="workerTeam"></select><button id="addWorker">Adicionar trabalhador</button></div>
-      </div>
-      <div class="card"><h2>Explorador operacional</h2><div class="grid"><div><label>Secção</label><select id="filterSection"></select></div><div><label>Máquina</label><select id="filterMachine"></select></div><div><label>Equipa</label><select id="filterTeam"></select></div><div><label>Pesquisar trabalhador</label><input id="workerSearch" placeholder="Nome"></div></div><div id="teamExplorer"></div></div>
-    </section>
+    <section id="dashboard" class="view active"></section>
+    <section id="production" class="view"></section>
+    <section id="structure" class="view"></section>
+    <section id="profiles" class="view"></section>
+    <section id="stats" class="view"></section>
+    <section id="data" class="view"></section>
+    <section id="ai" class="view"></section>
   </main>
-  <script src="js/storage.js"></script><script src="js/charts.js"></script><script src="js/reports.js"></script><script src="js/ai-import.js"></script><script src="js/app.js"></script>
+
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
