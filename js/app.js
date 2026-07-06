@@ -1,11 +1,12 @@
 let inputData=baseRows();
-let monthlyMonth=4,monthlyYear=2026,annualYear=2026;
+let monthlyMonth=4,monthlyYear=2026,annualYear=2026,comparisonMonth=4,comparisonYear=2026;
 
 function go(id){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
   if(id==="monthly")renderMonthly();
   if(id==="annual")renderAnnual();
+  if(id==="comparison")renderComparison();
   if(id==="input")renderInputs();
 }
 
@@ -21,8 +22,11 @@ function init(){
   document.getElementById("nextMonth").addEventListener("click",()=>changeMonth(1));
   document.getElementById("prevYear").addEventListener("click",()=>changeYear(-1));
   document.getElementById("nextYear").addEventListener("click",()=>changeYear(1));
+  document.getElementById("prevCompMonth").addEventListener("click",()=>changeComparisonMonth(-1));
+  document.getElementById("nextCompMonth").addEventListener("click",()=>changeComparisonMonth(1));
   setupSwipe("monthly",changeMonth);
   setupSwipe("annual",changeYear);
+  setupSwipe("comparison",changeComparisonMonth);
   loadInputMonth();
 }
 
@@ -44,7 +48,7 @@ function renderInputs(){
 function saveCurrentMonth(){
   const year=Number(document.getElementById("inAno").value),month=Number(document.getElementById("inMes").value);
   saveMonthData(year,month,inputData);
-  monthlyYear=year;monthlyMonth=month;annualYear=year;
+  monthlyYear=year;monthlyMonth=month;annualYear=year;comparisonYear=year;comparisonMonth=month;
   document.getElementById("saveStatus").innerHTML=`Guardado: <b>${MONTHS[month]} ${year}</b>.`;
 }
 
@@ -80,15 +84,23 @@ function changeMonth(delta){
   renderMonthly();
 }
 function changeYear(delta){annualYear+=delta;renderAnnual();}
-
+function changeComparisonMonth(delta){
+  comparisonMonth+=delta;
+  if(comparisonMonth<0){comparisonMonth=11;comparisonYear--;}
+  if(comparisonMonth>11){comparisonMonth=0;comparisonYear++;}
+  renderComparison();
+}
 function renderMonthly(){
   document.getElementById("monthlyTitle").textContent=`${MONTHS[monthlyMonth]} ${monthlyYear}`;
   document.getElementById("monthlyReport").innerHTML=reportHTML(`Impressão — ${MONTHS[monthlyMonth]} ${monthlyYear}`,loadMonthData(monthlyYear,monthlyMonth));
 }
-
 function renderAnnual(){
   document.getElementById("annualTitle").textContent=annualYear;
   document.getElementById("annualReport").innerHTML=reportHTML(`Impressão — acumulado anual ${annualYear}`,yearRows(annualYear),trendYearHTML(annualYear));
+}
+function renderComparison(){
+  document.getElementById("comparisonTitle").textContent=`${MONTHS[comparisonMonth]} ${comparisonYear}`;
+  document.getElementById("comparisonReport").innerHTML=comparisonHTML(`Comparação mensal — ${MONTHS[comparisonMonth]} ${comparisonYear}`,loadMonthData(comparisonYear,comparisonMonth))+comparisonHTML(`Comparação acumulada do ano — ${comparisonYear}`,yearRows(comparisonYear));
 }
 
 document.addEventListener("DOMContentLoaded",init);
