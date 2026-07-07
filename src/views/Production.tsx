@@ -129,9 +129,55 @@ function MachinesChart({ db }: { db: Db }) {
   )
 }
 
+interface TipItem {
+  dataKey?: string | number
+  name?: string
+  value?: number | string
+  color?: string
+  stroke?: string
+}
+/** Tooltip que mostra só a máquina do ponto sob o cursor (não a coluna toda). */
+function SinglePointTooltip({
+  active,
+  payload,
+  label,
+  hovered,
+}: {
+  active?: boolean
+  payload?: TipItem[]
+  label?: string | number
+  hovered: string | null
+}) {
+  if (!active || !payload || !payload.length) return null
+  const item = (hovered && payload.find((p) => p.dataKey === hovered)) || payload[0]
+  if (!item) return null
+  return (
+    <div
+      style={{
+        background: 'var(--popover)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        color: 'var(--popover-foreground)',
+        fontSize: 12,
+        padding: '6px 10px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      }}
+    >
+      <div style={{ marginBottom: 3, color: 'var(--muted-foreground)' }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span
+          style={{ width: 10, height: 10, borderRadius: 9999, background: item.color ?? item.stroke }}
+        />
+        <b>{item.name}</b>: {item.value}
+      </div>
+    </div>
+  )
+}
+
 function TrendChart({ db }: { db: Db }) {
   const [metric, setMetric] = useState<'of' | 'rnc'>('of')
   const [sectionFilter, setSectionFilter] = useState<'all' | 'flexo' | 'roto'>('all')
+  const [hovered, setHovered] = useState<string | null>(null)
   const all = recordsFor(db, {})
 
   const monthKeys = [...new Set(all.map((r) => r.year * 12 + r.month))].sort((a, b) => a - b)
@@ -191,33 +237,36 @@ function TrendChart({ db }: { db: Db }) {
           <p className="text-sm text-muted-foreground">Ainda não há meses com dados.</p>
         ) : (
           <ResponsiveContainer width="100%" height={340}>
-            <LineChart data={data} margin={{ top: 8, right: 12, left: -8, bottom: 4 }}>
+            <LineChart data={data} margin={{ top: 8, right: 12, left: -8, bottom: 4 }} onMouseLeave={() => setHovered(null)}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} />
               <YAxis tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} allowDecimals={false} width={36} />
-              <RTooltip
-                shared={false}
-                contentStyle={{
-                  background: 'var(--popover)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  color: 'var(--popover-foreground)',
-                  fontSize: 12,
-                }}
-              />
+              <RTooltip cursor={{ stroke: 'var(--border)' }} content={<SinglePointTooltip hovered={hovered} />} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              {machines.map((m) => (
-                <Line
-                  key={m.id}
-                  type="monotone"
-                  dataKey={m.name}
-                  stroke={machineColor(db, m.id)}
-                  strokeWidth={2.5}
-                  dot={{ r: 4, strokeWidth: 0, fill: machineColor(db, m.id) }}
-                  activeDot={{ r: 7 }}
-                  connectNulls
-                />
-              ))}
+              {machines.map((m) => {
+                const color = machineColor(db, m.id)
+                return (
+                  <Line
+                    key={m.id}
+                    type="monotone"
+                    dataKey={m.name}
+                    stroke={color}
+                    strokeWidth={2.5}
+                    activeDot={{ r: 7 }}
+                    connectNulls
+                    dot={(props: { cx?: number; cy?: number; index?: number }) => {
+                      const { cx, cy, index } = props
+                      if (cx == null || cy == null) return <g key={`${m.id}-${index}`} />
+                      return (
+                        <g key={`${m.id}-${index}`} onMouseEnter={() => setHovered(m.name)}>
+                          <circle cx={cx} cy={cy} r={4} fill={color} />
+                          <circle cx={cx} cy={cy} r={12} fill="transparent" style={{ cursor: 'pointer' }} />
+                        </g>
+                      )
+                    }}
+                  />
+                )
+              })}
             </LineChart>
           </ResponsiveContainer>
         )}
