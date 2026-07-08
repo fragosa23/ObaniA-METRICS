@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AppShell, type ViewId } from '@/components/AppShell'
 import { Dashboard } from '@/views/Dashboard'
@@ -16,16 +16,18 @@ function Placeholder({ label }: { label: string }) {
   )
 }
 
+/** Tema automático: usa a escolha guardada; sem escolha prévia, segue a preferência do sistema. */
+function getInitialTheme(): boolean {
+  const saved = localStorage.getItem('omp_theme')
+  const dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches
+  document.documentElement.classList.toggle('dark', dark)
+  return dark
+}
+
 function App() {
   const [view, setView] = useState<ViewId>('dashboard')
-  const [dark, setDark] = useState(false)
+  const [dark, setDark] = useState(getInitialTheme)
   const db = loadDb()
-
-  useEffect(() => {
-    const saved = localStorage.getItem('omp_theme') === 'dark'
-    setDark(saved)
-    document.documentElement.classList.toggle('dark', saved)
-  }, [])
 
   const toggleTheme = () => {
     const next = !dark
