@@ -141,21 +141,21 @@
     }
 }
 
-/* Destaque animado da melhor / pior máquina (com fallback estático e respeito por reduced-motion). */
-@keyframes omp-glow-best {
-  0%, 100% { box-shadow: 0 0 0 2px var(--success), 0 0 0 0 color-mix(in srgb, var(--success) 55%, transparent); }
-  50% { box-shadow: 0 0 0 2px var(--success), 0 0 12px 2px color-mix(in srgb, var(--success) 55%, transparent); }
+/* Destaque da melhor / pior máquina: fundo animado (sem contornos, para não serem cortados). */
+@keyframes omp-bg-best {
+  0%, 100% { background-color: color-mix(in srgb, var(--success) 10%, transparent); }
+  50% { background-color: color-mix(in srgb, var(--success) 28%, transparent); }
 }
-@keyframes omp-glow-worst {
-  0%, 100% { box-shadow: 0 0 0 2px var(--destructive), 0 0 0 0 color-mix(in srgb, var(--destructive) 55%, transparent); }
-  50% { box-shadow: 0 0 0 2px var(--destructive), 0 0 12px 2px color-mix(in srgb, var(--destructive) 55%, transparent); }
+@keyframes omp-bg-worst {
+  0%, 100% { background-color: color-mix(in srgb, var(--destructive) 10%, transparent); }
+  50% { background-color: color-mix(in srgb, var(--destructive) 28%, transparent); }
 }
 @keyframes omp-bob {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
-.omp-best { box-shadow: 0 0 0 2px var(--success); animation: omp-glow-best 1.8s ease-in-out infinite; }
-.omp-worst { box-shadow: 0 0 0 2px var(--destructive); animation: omp-glow-worst 1.8s ease-in-out infinite; }
+.omp-best { animation: omp-bg-best 1.8s ease-in-out infinite; }
+.omp-worst { animation: omp-bg-worst 1.8s ease-in-out infinite; }
 .omp-bob { animation: omp-bob 1.6s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
