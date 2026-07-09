@@ -7,6 +7,7 @@ import {
   Database,
   Bot,
   Menu,
+  Settings,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,6 +25,7 @@ export type ViewId =
   | 'profiles'
   | 'data'
   | 'ai'
+  | 'settings'
 
 export const VIEWS: { id: ViewId; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -32,6 +34,7 @@ export const VIEWS: { id: ViewId; label: string; icon: typeof LayoutDashboard }[
   { id: 'profiles', label: 'Fichas', icon: IdCard },
   { id: 'data', label: 'Dados', icon: Database },
   { id: 'ai', label: 'Assistente IA', icon: Bot },
+  { id: 'settings', label: 'Configurações', icon: Settings },
 ]
 
 export function AppShell({

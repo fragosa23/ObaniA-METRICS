@@ -125,6 +125,13 @@ export interface Db {
   rncCauses: unknown[]
   trainingRecords: unknown[]
   archives: Archive[]
+  /** Definições da app (viajam com a exportação/importação dos dados). */
+  settings?: {
+    /** Horários disponíveis para turnos fixos (geríveis em Configurações). */
+    schedules: string[]
+    /** Meta da taxa de RNC por 100 OF (ex.: 2 = 2%). */
+    targetTaxa: number
+  }
 }
 
 export interface Archive {

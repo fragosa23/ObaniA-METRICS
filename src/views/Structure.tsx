@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { InfoTip } from '@/components/InfoTip'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import type {
   Db,
   Machine,
@@ -321,9 +322,11 @@ function TeamForm({
       ? clone(initial)
       : { id: '', name: '', sectionId: '', machineId: '', regime: 'rot3', shift: '', schedule: '', members: [] },
   )
+  // Horários disponíveis (geríveis em Configurações › Horários e Turnos).
+  const scheduleOptions = db.settings?.schedules ?? [...SCHEDULE_OPTIONS]
   // Guarda se o horário está em modo "Outro" (escrito à mão).
   const [customSchedule, setCustomSchedule] = useState<boolean>(
-    !!initial?.schedule && !SCHEDULE_OPTIONS.includes(initial.schedule as (typeof SCHEDULE_OPTIONS)[number]),
+    !!initial?.schedule && !scheduleOptions.includes(initial.schedule),
   )
   const set = (patch: Partial<Team>) => setT((prev) => ({ ...prev, ...patch }))
 
@@ -429,7 +432,7 @@ function TeamForm({
                 <SelectValue placeholder="Escolher horário" />
               </SelectTrigger>
               <SelectContent>
-                {SCHEDULE_OPTIONS.map((s) => (
+                {scheduleOptions.map((s) => (
                   <SelectItem key={s} value={s}>
                     {s}
                   </SelectItem>
@@ -637,8 +640,18 @@ type Editing =
   | { kind: 'worker'; value: Worker | null }
   | null
 
+interface PendingDelete {
+  title: string
+  description: string
+  action: () => void
+}
+
 export function Structure({ db, onChange }: { db: Db; onChange: (db: Db) => void }) {
   const [editing, setEditing] = useState<Editing>(null)
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+  // Pesquisa e filtro no separador Trabalhadores (essenciais com centenas de fichas).
+  const [workerQuery, setWorkerQuery] = useState('')
+  const [workerTeamFilter, setWorkerTeamFilter] = useState<string>('all')
 
   const mutate = (fn: (d: Db) => void) => {
     const next = clone(db)
@@ -647,6 +660,16 @@ export function Structure({ db, onChange }: { db: Db; onChange: (db: Db) => void
   }
 
   const membersOf = (teamId: string) => db.workers.filter((x) => x.teamId === teamId)
+
+  const filteredWorkers = useMemo(() => {
+    const q = workerQuery.trim().toLowerCase()
+    return db.workers.filter((w) => {
+      if (workerTeamFilter === NONE && w.teamId) return false
+      if (workerTeamFilter !== 'all' && workerTeamFilter !== NONE && w.teamId !== workerTeamFilter) return false
+      if (!q) return true
+      return w.name.toLowerCase().includes(q) || (w.number || '').toLowerCase().includes(q)
+    })
+  }, [db.workers, workerQuery, workerTeamFilter])
 
   // Distribuição de turnos de uma equipa, a partir dos registos de produção.
   const teamShiftCounts = useMemo(() => {
@@ -731,13 +754,13 @@ export function Structure({ db, onChange }: { db: Db; onChange: (db: Db) => void
                   </div>
                   <RowActions
                     onEdit={() => setEditing({ kind: 'machine', value: m })}
-                    onDelete={() => {
-                      if (confirm(`Apagar a máquina ${m.name}? Os registos de produção dela não são apagados.`)) {
-                        mutate((d) => {
-                          d.machines = d.machines.filter((x) => x.id !== m.id)
-                        })
-                      }
-                    }}
+                    onDelete={() =>
+                      setPendingDelete({
+                        title: `Apagar a máquina ${m.name}?`,
+                        description: 'Os registos de produção desta máquina não são apagados — só a ficha da máquina.',
+                        action: () => mutate((d) => { d.machines = d.machines.filter((x) => x.id !== m.id) }),
+                      })
+                    }
                   />
                 </div>
               ))}
@@ -770,13 +793,13 @@ export function Structure({ db, onChange }: { db: Db; onChange: (db: Db) => void
                   </div>
                   <RowActions
                     onEdit={() => setEditing({ kind: 'area', value: a })}
-                    onDelete={() => {
-                      if (confirm(`Apagar a área ${a.name}?`)) {
-                        mutate((d) => {
-                          d.workAreas = d.workAreas.filter((x) => x.id !== a.id)
-                        })
-                      }
-                    }}
+                    onDelete={() =>
+                      setPendingDelete({
+                        title: `Apagar a área ${a.name}?`,
+                        description: 'O histórico de funções dos trabalhadores que lá passaram mantém-se.',
+                        action: () => mutate((d) => { d.workAreas = d.workAreas.filter((x) => x.id !== a.id) }),
+                      })
+                    }
                   />
                 </div>
               ))}
@@ -835,16 +858,19 @@ export function Structure({ db, onChange }: { db: Db; onChange: (db: Db) => void
                       </div>
                       <RowActions
                         onEdit={() => setEditing({ kind: 'team', value: t })}
-                        onDelete={() => {
-                          if (confirm(`Apagar a equipa ${t.name}? Os trabalhadores ficam sem equipa.`)) {
-                            mutate((d) => {
-                              d.teams = d.teams.filter((x) => x.id !== t.id)
-                              d.workers.forEach((wk) => {
-                                if (wk.teamId === t.id) wk.teamId = ''
-                              })
-                            })
-                          }
-                        }}
+                        onDelete={() =>
+                          setPendingDelete({
+                            title: `Apagar a equipa ${t.name}?`,
+                            description: 'Os trabalhadores desta equipa ficam sem equipa (o histórico deles mantém-se).',
+                            action: () =>
+                              mutate((d) => {
+                                d.teams = d.teams.filter((x) => x.id !== t.id)
+                                d.workers.forEach((wk) => {
+                                  if (wk.teamId === t.id) wk.teamId = ''
+                                })
+                              }),
+                          })
+                        }
                       />
                     </div>
 
@@ -897,10 +923,46 @@ export function Structure({ db, onChange }: { db: Db; onChange: (db: Db) => void
               />
             </CardHeader>
             <CardContent className="space-y-2">
+              {/* Pesquisa + filtro por equipa */}
+              {db.workers.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <Input
+                    value={workerQuery}
+                    onChange={(e) => setWorkerQuery(e.target.value)}
+                    placeholder="Pesquisar por nº ou nome…"
+                    aria-label="Pesquisar trabalhadores"
+                    className="max-w-xs"
+                  />
+                  <Select value={workerTeamFilter} onValueChange={setWorkerTeamFilter}>
+                    <SelectTrigger className="w-[170px]" aria-label="Filtrar por equipa">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as equipas</SelectItem>
+                      <SelectItem value={NONE}>Sem equipa</SelectItem>
+                      {db.teams.map((tm) => (
+                        <SelectItem key={tm.id} value={tm.id}>
+                          {tm.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {db.workers.length === 0 && (
                 <p className="text-sm text-muted-foreground">Ainda não há trabalhadores.</p>
               )}
-              {db.workers.map((wk) => {
+              {filteredWorkers.length === 0 && db.workers.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Nenhum trabalhador corresponde à pesquisa.
+                </p>
+              )}
+              {filteredWorkers.length > 0 && filteredWorkers.length < db.workers.length && (
+                <p className="text-xs text-muted-foreground">
+                  A mostrar {filteredWorkers.length} de {db.workers.length}.
+                </p>
+              )}
+              {filteredWorkers.map((wk) => {
                 const age = ageFromBirth(wk.birthDate)
                 const printMonths = printingMonths(wk)
                 const teamMonths = currentTeamMonths(wk)
@@ -947,16 +1009,19 @@ export function Structure({ db, onChange }: { db: Db; onChange: (db: Db) => void
                       </div>
                       <RowActions
                         onEdit={() => setEditing({ kind: 'worker', value: wk })}
-                        onDelete={() => {
-                          if (confirm(`Apagar o trabalhador ${workerLabel(wk)}?`)) {
-                            mutate((d) => {
-                              d.workers = d.workers.filter((x) => x.id !== wk.id)
-                              d.teams.forEach((tm) => {
-                                tm.members = (tm.members || []).filter((id) => id !== wk.id)
-                              })
-                            })
-                          }
-                        }}
+                        onDelete={() =>
+                          setPendingDelete({
+                            title: `Apagar ${workerLabel(wk)}?`,
+                            description: 'A ficha e o histórico deste trabalhador são apagados deste dispositivo.',
+                            action: () =>
+                              mutate((d) => {
+                                d.workers = d.workers.filter((x) => x.id !== wk.id)
+                                d.teams.forEach((tm) => {
+                                  tm.members = (tm.members || []).filter((id) => id !== wk.id)
+                                })
+                              }),
+                          })
+                        }
                       />
                     </div>
                   </div>
@@ -1031,6 +1096,19 @@ export function Structure({ db, onChange }: { db: Db; onChange: (db: Db) => void
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={pendingDelete?.title ?? ''}
+        description={pendingDelete?.description ?? ''}
+        confirmLabel="Apagar"
+        destructive
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          pendingDelete?.action()
+          setPendingDelete(null)
+        }}
+      />
     </div>
   )
 }

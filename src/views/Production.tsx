@@ -48,7 +48,9 @@ function MachinesChart({ db, year }: { db: Db; year: number }) {
 
   const maxOf = Math.max(...rows.map((x) => x.a.of), 1)
 
-  const rated = rows.filter((x) => x.a.of > 0 && x.a.taxa !== null)
+  // Melhor/pior só entre máquinas ativas — uma descontinuada não é "a pior",
+  // já nem está a produzir.
+  const rated = rows.filter((x) => x.a.of > 0 && x.a.taxa !== null && x.m.status !== 'discontinued')
   const sortedByTaxa = [...rated].sort((a, b) => (a.a.taxa || 0) - (b.a.taxa || 0))
   const bestId = sortedByTaxa[0]?.m.id
   const worstId = sortedByTaxa[sortedByTaxa.length - 1]?.m.id
@@ -70,7 +72,8 @@ function MachinesChart({ db, year }: { db: Db; year: number }) {
             <span className="size-3 rounded-sm" style={{ background: sectionColor('roto') }} /> OF Rotogravura
           </span>
           <span className="flex items-center gap-1.5">
-            <b className="text-sm text-foreground">12</b> = nº de RNC
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-bold text-foreground">12</span>
+            número grande = nº de RNC
           </span>
           <span className="flex items-center gap-1.5">
             <ThumbsUp className="size-3.5" style={{ color: 'var(--success)' }} /> melhor
@@ -118,6 +121,9 @@ function MachinesChart({ db, year }: { db: Db; year: number }) {
                     {x.m.name}
                     <InfoTip text={machineInfo(db, x.m)} label={`O que é ${x.m.name}`} />
                   </div>
+                  {x.m.status === 'discontinued' && (
+                    <div className="text-[10px] font-medium text-destructive/80">descontinuada</div>
+                  )}
                   <div className="text-[11px] tabular-nums text-muted-foreground">
                     % RNC <span style={{ color: rncColor }}>{fmt(x.a.taxa)}</span>
                   </div>
@@ -188,6 +194,15 @@ function TrendChart({ db, year }: { db: Db; year: number }) {
   const [metric, setMetric] = useState<'of' | 'rnc'>('of')
   const [sectionFilter, setSectionFilter] = useState<'all' | 'flexo' | 'roto'>('all')
   const [hovered, setHovered] = useState<string | null>(null)
+  // Máquinas escondidas ao clicar na legenda (para isolar as linhas que interessam).
+  const [hidden, setHidden] = useState<Set<string>>(new Set())
+  const toggleLine = (name: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
   const all = recordsFor(db, { year })
 
   const monthKeys = [...new Set(all.map((r) => r.year * 12 + r.month))].sort((a, b) => a - b)
@@ -228,7 +243,7 @@ function TrendChart({ db, year }: { db: Db; year: number }) {
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-1.5 text-base">
           Tendência ao longo dos meses
-          <InfoTip text="Evolução mês a mês de cada máquina. Passa o cursor sobre um ponto para ver o valor dessa máquina nesse mês. Sobe = mais, desce = menos." />
+          <InfoTip text="Evolução mês a mês de cada máquina. Passa o cursor sobre um ponto para ver o valor dessa máquina nesse mês. Clica numa máquina na legenda para a esconder/mostrar e isolar as que interessam." />
         </CardTitle>
         <div className="flex flex-wrap gap-3 pt-2">
           <div className="flex gap-1.5">
@@ -252,7 +267,16 @@ function TrendChart({ db, year }: { db: Db; year: number }) {
               <XAxis dataKey="label" tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} />
               <YAxis tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} allowDecimals={false} width={36} />
               <RTooltip cursor={{ stroke: 'var(--border)' }} content={<SinglePointTooltip hovered={hovered} />} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Legend
+                wrapperStyle={{ fontSize: 12, cursor: 'pointer', userSelect: 'none' }}
+                onClick={(e) => {
+                  const name = (e as { value?: string }).value
+                  if (name) toggleLine(name)
+                }}
+                formatter={(value: string) => (
+                  <span style={{ opacity: hidden.has(value) ? 0.35 : 1 }}>{value}</span>
+                )}
+              />
               {machines.map((m) => {
                 const color = machineColor(db, m.id)
                 return (
@@ -260,6 +284,7 @@ function TrendChart({ db, year }: { db: Db; year: number }) {
                     key={m.id}
                     type="monotone"
                     dataKey={m.name}
+                    hide={hidden.has(m.name)}
                     stroke={color}
                     strokeWidth={2.5}
                     activeDot={false}
@@ -580,7 +605,7 @@ export function Production({ db }: { db: Db }) {
       {db.sections.map((section) => {
         const machines = db.machines.filter((m) => m.sectionId === section.id)
         const stats = machines.map((m) => ({ m, a: aggregate(recordsFor(db, { machineId: m.id, year })) }))
-        const withData = stats.filter((x) => x.a.of > 0)
+        const withData = stats.filter((x) => x.a.of > 0 && x.m.status !== 'discontinued')
         const bestProdId = withData.length
           ? withData.reduce((b, x) => (x.a.of > b.a.of ? x : b)).m.id
           : null

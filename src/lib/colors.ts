@@ -13,7 +13,7 @@ export function sectionColor(sectionId: string): string {
 
 // Paleta categórica segura para daltonismo (Paul Tol "bright" + laranja),
 // legível em modo claro e escuro.
-const MACHINE_PALETTE = [
+export const MACHINE_PALETTE = [
   '#4477AA', // azul
   '#EE6677', // vermelho-rosa
   '#228833', // verde

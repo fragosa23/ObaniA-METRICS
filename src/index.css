@@ -162,3 +162,138 @@
 @media (prefers-reduced-motion: reduce) {
   .omp-rnc-label { animation: none; }
 }
+
+/* ===== Dashboard moderno ===================================================== */
+
+/* Entrada em cascata das secções. */
+@keyframes omp-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.omp-in { animation: omp-fade-up 0.5s ease-out both; }
+
+/* Cartões com elevação suave ao passar por cima. */
+.omp-card-hover {
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.omp-card-hover:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  box-shadow: 0 8px 30px -12px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+/* Título com gradiente. */
+.omp-gradient-text {
+  background: linear-gradient(90deg, var(--foreground) 30%, var(--primary) 75%, oklch(0.58 0.19 300) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Sparklines: desenho progressivo da linha. */
+@keyframes omp-spark-draw {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+.omp-spark {
+  stroke-dasharray: 100;
+  animation: omp-spark-draw 1s ease-out both;
+}
+
+/* Anel de saúde: preenchimento animado. */
+.omp-ring { transition: stroke-dashoffset 1s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Barras dos rankings: crescem ao entrar. */
+@keyframes omp-bar-grow {
+  from { width: 0 !important; }
+}
+.omp-bar { animation: omp-bar-grow 0.8s ease-out; }
+
+/* Cartão do índice de saúde: contorno com gradiente subtil. */
+.omp-health {
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    linear-gradient(120deg, color-mix(in srgb, var(--primary) 45%, transparent), transparent 40%, color-mix(in srgb, oklch(0.58 0.19 300) 35%, transparent)) border-box;
+  border-color: transparent;
+}
+
+/* "Blobs" decorativos no fundo, a flutuar devagar. */
+@keyframes omp-float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(40px, 30px) scale(1.08); }
+}
+@keyframes omp-float-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-50px, -20px) scale(1.05); }
+}
+.omp-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.16;
+}
+.omp-blob-1 {
+  top: -120px; right: -80px;
+  width: 480px; height: 480px;
+  background: var(--primary);
+  animation: omp-float-1 18s ease-in-out infinite;
+}
+.omp-blob-2 {
+  bottom: -140px; left: -100px;
+  width: 420px; height: 420px;
+  background: oklch(0.58 0.19 300);
+  animation: omp-float-2 22s ease-in-out infinite;
+}
+
+/* ===== Assistente ObaniA ===================================================== */
+
+.omp-mascot {
+  background: linear-gradient(135deg, var(--primary), oklch(0.58 0.19 300));
+  box-shadow: 0 4px 16px -4px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+/* Olhos que piscam de vez em quando. */
+.omp-mascot-eyes { pointer-events: none; }
+.omp-eye {
+  width: 9%;
+  height: 22%;
+  min-width: 3px;
+  min-height: 6px;
+  border-radius: 9999px;
+  background: white;
+  animation: omp-blink 4.5s ease-in-out infinite;
+}
+@keyframes omp-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+/* O "O" fica escondido atrás dos olhos — mantém o glifo para acessibilidade visual. */
+.omp-mascot { color: transparent; }
+
+.omp-assistant-btn {
+  transition: transform 0.2s ease;
+}
+.omp-assistant-btn:hover { transform: translateY(-2px) scale(1.04); }
+
+/* Ponto de notificação quando o balão está fechado mas há sugestões. */
+.omp-assistant-dot {
+  position: absolute;
+  top: -2px; right: -2px;
+  width: 12px; height: 12px;
+  border-radius: 9999px;
+  background: var(--warning);
+  border: 2px solid var(--background);
+  animation: omp-pulse 1.6s ease-in-out infinite;
+}
+
+/* Entrada do balão. */
+@keyframes omp-panel-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.omp-panel-in { animation: omp-panel-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .omp-in, .omp-spark, .omp-bar, .omp-panel-in, .omp-eye,
+  .omp-blob-1, .omp-blob-2, .omp-assistant-dot { animation: none; }
+  .omp-ring, .omp-card-hover, .omp-assistant-btn { transition: none; }
+}

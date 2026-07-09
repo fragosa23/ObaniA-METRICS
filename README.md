@@ -37,13 +37,29 @@ A app foi **reconstruída de raiz** em React, mantendo o modelo de dados e os da
 
 ### ✅ Implementado
 
-#### Dashboard
+#### Dashboard (visual moderno)
 - Seletor de período: ano inteiro ou um mês específico (só aparecem os que já têm dados).
-- KPIs com explicação ao passar o cursor (OF, RNC, taxa RNC/100 OF, OF por RNC).
-- Índice de Saúde da Produção (0–100), calculado a partir da taxa de RNC, alertas de máquinas, equilíbrio entre secções e evolução recente.
-- Gráficos circulares de RNC e OF por secção.
-- Ranking das 3 máquinas com mais trabalho e das 3 com mais RNC.
-- Alerta automático da pior máquina do período.
+- KPIs com contagem animada, mini-gráfico dos meses (sparkline) e **variação face ao período anterior** (▲/▼, verde = bom, vermelho = mau).
+- **Meta da taxa de RNC** (definida em Configurações) visível junto à taxa.
+- Índice de Saúde da Produção (0–100) num **anel animado com brilho**, calculado a partir da taxa de RNC, alertas de máquinas **ativas**, equilíbrio entre secções e evolução recente.
+- Gráficos circulares de RNC e OF por secção; rankings de máquinas.
+- Alertas honestos: a pior máquina é sempre uma **ativa**; as descontinuadas aparecem só como nota.
+- Entradas em cascata, cartões com elevação ao passar por cima, fundo com brilhos suaves — tudo desativado automaticamente para quem prefere menos movimento (prefers-reduced-motion).
+
+#### Assistente ObaniA 🤖
+- Mascote da app num balão flutuante no Dashboard, com **sugestões sobre o período selecionado**: máquinas acima da meta, taxa a subir/descer, meses sem registos, RNC sem causa, máquinas sem defeitos.
+- Baseado **apenas nos dados registados** (regras locais) — nunca inventa valores.
+- Fechável na cruz (com confirmação); religa-se em **Configurações**. Em ecrãs pequenos começa recolhido para não tapar conteúdo.
+
+#### Configurações
+- Ligar/desligar o assistente ObaniA (preferência do dispositivo).
+- **Meta da taxa de RNC** (viaja com a exportação de dados).
+- **Horários e Turnos**: gerir os horários disponíveis para equipas de turno fixo.
+
+#### Fichas (informativas)
+- Ficha de cada **trabalhador**: idade (calculada da data de nascimento), percurso de funções (cronologia com durações), tempo por equipa (com gráfico circular), observações.
+- Ficha de cada **equipa**: máquina, regime de turno, membros (com ligação às fichas individuais).
+- Nota honesta em ambas: a produção por pessoa/equipa fica indisponível **até os registos de OF identificarem quem os produziu** — a app não finge dados que não tem.
 
 #### Produção
 - Seletor de ano (pronto para quando houver dados de anos anteriores).
@@ -54,8 +70,10 @@ A app foi **reconstruída de raiz** em React, mantendo o modelo de dados e os da
 #### Estrutura
 - Três separadores: **Máquinas e Áreas**, **Equipas** e **Trabalhadores** — ver, criar, editar e apagar.
 - **Máquinas e Áreas** — máquinas de impressão (Flexografia, Rotogravura e agora **Offset**), com etiqueta *Produção*, e **áreas de apoio** (Montagem de Cilindros, Montagem de Clichês, Limpeza) com etiqueta *Apoio*. As áreas não entram nos gráficos de OF/RNC; servem para o histórico de funções.
-- **Equipas** — cada equipa associada a uma máquina; os membros vêm da ficha de cada trabalhador. Mostra a **distribuição de turnos já cumpridos** (a partir dos registos de produção), assumindo turnos rotativos.
-- **Trabalhadores** — lista com total, função, equipa, idade calculada da data de nascimento e tempo a imprimir. Ao mudar de equipa ou função, o **histórico atualiza-se sozinho** (fecha a passagem anterior e abre a nova, com datas).
+- **Equipas** — cada equipa associada a uma máquina, com **regime de turno** (rotativo M/T/N, rotativo M/T, ou fixo com turno + horário). A distribuição de turnos cumpridos aparecerá quando os registos de produção identificarem a equipa.
+- **Trabalhadores** — lista com total, **pesquisa por nº/nome e filtro por equipa**, função, equipa, idade calculada da data de nascimento e tempo a imprimir. Ao mudar de equipa ou função, o **histórico atualiza-se sozinho** (fecha a passagem anterior e abre a nova, com datas).
+
+> **Nota de honestidade dos dados:** os registos de OF importados das fotografias **não identificam** que equipa/turno/pessoa os produziu. Por isso, equipas e trabalhadores são por agora **meramente informativos** — nenhum gráfico de produção lhes atribui OF ou RNC.
 
 #### Em toda a app
 - Menu lateral (drawer) com Dashboard, Produção, Estrutura, Fichas, Dados e Assistente IA.
@@ -67,11 +85,11 @@ A app foi **reconstruída de raiz** em React, mantendo o modelo de dados e os da
 
 Por ordem prevista:
 
-1. **Fichas** — página dedicada por entidade (secção, máquina, equipa, trabalhador), com os dados agregados e o histórico de cada uma. A ficha do trabalhador é para estatística e análise, não para culpabilização individual. A Estrutura já guarda o histórico de funções e de equipas que a ficha vai mostrar.
-2. **Dados** — exportação/importação em JSON, arquivo automático de versões anteriores, e criação rápida de dados ("+ Novo": trabalhador, equipa, máquina, registo RNC rápido).
-3. **Assistente IA** — deixado para o fim de propósito. Chat local que responde apenas com base nos dados já registados (nunca inventa valores), tolerante a erros de escrita. Já existia na versão anterior ([`legacy/js/assistant.js`](./legacy/js/assistant.js)) e serve de referência para a reconstrução.
+1. **Dados** — exportação/importação em JSON, arquivo automático de versões anteriores, e criação rápida de dados ("+ Novo": trabalhador, equipa, máquina, registo RNC rápido).
+2. **Assistente IA (chat)** — o ecrã de conversa: perguntar coisas aos dados por escrito. O balão ObaniA do Dashboard é a face proativa do mesmo cérebro; o chat será a face reativa. Referência: [`legacy/js/assistant.js`](./legacy/js/assistant.js).
+3. **Análises seguintes** — comparação de períodos lado a lado, análise de causas de RNC (Pareto — precisa de as causas passarem a ser registadas), desempenho por turno, relatório mensal imprimível. Mais além: paragens/OEE, manutenção, desperdício, formação.
 
-Estes dois ecrãs (Fichas, Dados) ainda mostram apenas um aviso "em construção" na app atual.
+O ecrã **Dados** ainda mostra um aviso "em construção" na app atual.
 
 ### Ideias mais a longo prazo
 

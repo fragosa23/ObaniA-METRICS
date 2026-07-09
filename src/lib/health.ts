@@ -52,7 +52,9 @@ export function healthIndex(
   const taxa = a.taxa || 0
   score -= Math.min(45, taxa * 7)
 
+  // Só máquinas ativas contam para alertas — as descontinuadas já não produzem.
   const machineAlerts = db.machines.filter((m) => {
+    if (m.status === 'discontinued') return false
     const ma = aggregate(currentRecords.filter((r) => r.machineId === m.id))
     return ma.of > 0 && (ma.taxa || 0) > 5
   }).length

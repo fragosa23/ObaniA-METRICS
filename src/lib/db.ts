@@ -14,7 +14,7 @@ import type {
 
 const DB_KEY = 'rnc_impressao_v3'
 const ARCHIVE_KEY = 'rnc_impressao_v3_archives'
-const APP_DATA_REVISION = 8
+const APP_DATA_REVISION = 9
 
 export const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -191,27 +191,6 @@ function baseWorkers(): Worker[] {
   ]
 }
 
-// Associa equipas e turnos rotativos aos registos semeados, para o separador
-// de Equipas ter dados reais de "quantas vezes a equipa esteve em cada turno".
-// Só afeta dados de demonstração (as fotografias importadas fev–maio 2026).
-const SEED_TEAM_BY_MACHINE: Record<string, string[]> = {
-  IF3: ['E1-IF3'],
-  IF4: ['E1-IF4'],
-  IR3: ['E1-IR3', 'E2-IR3'],
-  IR4: ['E1-IR4'],
-}
-const SEED_SHIFT_ROT = ['Manhã', 'Tarde', 'Noite']
-function assignSeedTeamsAndShifts(records: ProductionRecord[]): boolean {
-  let changed = false
-  records.forEach((r) => {
-    const teams = SEED_TEAM_BY_MACHINE[r.machineId]
-    if (!teams) return
-    if (!r.teamId) { r.teamId = teams[r.month % teams.length]; changed = true }
-    if (!r.shift) { r.shift = SEED_SHIFT_ROT[r.month % 3]; changed = true }
-  })
-  return changed
-}
-
 function baseMachines(): Machine[] {
   return [
     { id: 'IF1', name: 'IF1', sectionId: 'flexo', manufacturer: '', year: '', colors: '', width: '', status: 'active', statusNote: '', notes: '' },
@@ -225,16 +204,19 @@ function baseMachines(): Machine[] {
   ]
 }
 
+export function defaultSettings(): NonNullable<Db['settings']> {
+  return { schedules: [...SCHEDULE_OPTIONS], targetTaxa: 2 }
+}
+
 function seedDb(): Db {
-  const records = clone(SEEDED_RECORDS)
-  assignSeedTeamsAndShifts(records)
   return {
     app: 'RNC Impressão', version: 3, dataRevision: APP_DATA_REVISION,
     updatedAt: new Date().toISOString(),
     sections: baseSections(), workAreas: baseWorkAreas(),
     machines: baseMachines(), teams: baseTeams(), workers: baseWorkers(),
-    productionRecords: records,
+    productionRecords: clone(SEEDED_RECORDS),
     rncCauses: [], trainingRecords: [], archives: [],
+    settings: defaultSettings(),
   }
 }
 
@@ -302,8 +284,17 @@ function migrateDb(db: Db): { db: Db; changed: boolean } {
   SEEDED_RECORDS.forEach((r) => {
     if (!ids.has(r.id)) { db.productionRecords.push(clone(r)); changed = true }
   })
-  // Enriquece só os registos de demonstração com equipa + turno rotativo.
-  if (assignSeedTeamsAndShifts(db.productionRecords.filter((r) => r.id.startsWith('seed_')))) changed = true
+  // Honestidade dos dados: as OF importadas das fotografias NÃO identificam
+  // que equipa/turno as produziu — remove qualquer atribuição fictícia antiga.
+  db.productionRecords.forEach((r) => {
+    if (r.id.startsWith('seed_') && (r.teamId || r.shift)) {
+      r.teamId = ''; r.shift = ''; changed = true
+    }
+  })
+  // Definições da app (meta da taxa, horários disponíveis).
+  if (!db.settings) { db.settings = defaultSettings(); changed = true }
+  if (!db.settings.schedules || !db.settings.schedules.length) { db.settings.schedules = [...SCHEDULE_OPTIONS]; changed = true }
+  if (db.settings.targetTaxa === undefined) { db.settings.targetTaxa = 2; changed = true }
   if ((db.dataRevision || 0) < APP_DATA_REVISION) { db.dataRevision = APP_DATA_REVISION; changed = true }
   return { db, changed }
 }
