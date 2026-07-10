@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Archive as ArchiveIcon,
   Boxes,
@@ -8,6 +8,7 @@ import {
   History,
   Pencil,
   Plus,
+  SprayCan,
   Trash2,
   Upload,
   Users,
@@ -18,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -36,23 +38,37 @@ import {
 import { InfoTip } from '@/components/InfoTip'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ChangeLogList } from '@/components/ChangeLogList'
-import type { Db, ProductionRecord } from '@/lib/types'
+import { AreaForm, MachineForm, TeamForm, WorkerForm } from '@/components/EntityForms'
+import type { Db, Machine, ProductionRecord, Team, WorkArea, Worker } from '@/lib/types'
 import {
+  areaFieldSpecs,
   diffFields,
   exportDb,
   fmtDateTime,
   getArchives,
   importDb,
   logChange,
+  machineFieldSpecs,
   machineName,
   MONTHS,
   n,
   recordFieldSpecs,
   restoreArchive,
   sectionName,
+  teamFieldSpecs,
+  teamName,
+  teamRegimeLabel,
   uid,
+  workerFieldSpecs,
+  workerLabel,
 } from '@/lib/db'
 import { sectionColor } from '@/lib/colors'
+
+/** Pedido de edição vindo de outro ecrã (ex.: botão "Editar" numa ficha). id null = criar novo. */
+export type EditTarget = {
+  kind: 'machine' | 'area' | 'team' | 'worker' | 'record'
+  id: string | null
+}
 
 function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v))
@@ -405,18 +421,29 @@ function RecordForm({
 // Ecrã Dados
 // ---------------------------------------------------------------------------
 
+type EditingEntity =
+  | { kind: 'machine'; value: Machine | null }
+  | { kind: 'area'; value: WorkArea | null }
+  | { kind: 'team'; value: Team | null }
+  | { kind: 'worker'; value: Worker | null }
+  | null
+
 export function Data({
   db,
   onChange,
   onReload,
-  goStructure,
+  editTarget,
+  onConsumeEdit,
 }: {
   db: Db
   onChange: (db: Db) => void
   onReload: () => void
-  goStructure: () => void
+  /** Pedido de edição vindo de outro ecrã (botão "Editar" numa ficha). */
+  editTarget: EditTarget | null
+  onConsumeEdit: () => void
 }) {
   const [editingRecord, setEditingRecord] = useState<ProductionRecord | null | 'new'>(null)
+  const [editingEntity, setEditingEntity] = useState<EditingEntity>(null)
   const [pendingDelete, setPendingDelete] = useState<{ title: string; description: string; action: () => void } | null>(null)
   const [importMsg, setImportMsg] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -427,6 +454,25 @@ export function Data({
     fn(next)
     onChange(next)
   }
+
+  // Abre o formulário certo quando outro ecrã pede uma edição (ex.: "Editar" numa ficha).
+  useEffect(() => {
+    if (!editTarget) return
+    if (editTarget.kind === 'record') {
+      const r = editTarget.id ? db.productionRecords.find((x) => x.id === editTarget.id) : null
+      setEditingRecord(r ?? 'new')
+    } else if (editTarget.kind === 'machine') {
+      setEditingEntity({ kind: 'machine', value: editTarget.id ? db.machines.find((x) => x.id === editTarget.id) ?? null : null })
+    } else if (editTarget.kind === 'area') {
+      setEditingEntity({ kind: 'area', value: editTarget.id ? db.workAreas.find((x) => x.id === editTarget.id) ?? null : null })
+    } else if (editTarget.kind === 'team') {
+      setEditingEntity({ kind: 'team', value: editTarget.id ? db.teams.find((x) => x.id === editTarget.id) ?? null : null })
+    } else if (editTarget.kind === 'worker') {
+      setEditingEntity({ kind: 'worker', value: editTarget.id ? db.workers.find((x) => x.id === editTarget.id) ?? null : null })
+    }
+    onConsumeEdit()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTarget])
 
   // Registos agrupados por mês (mais recente primeiro).
   const groups = useMemo(() => {
@@ -485,8 +531,8 @@ export function Data({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Factory className="size-4.5 text-muted-foreground" />
-              Registos de produção ({db.productionRecords.length})
-              <InfoTip text="Cada registo é uma máquina num mês. Aqui podes corrigir um registo específico (OF, RNC, causa, observações) ou apagá-lo." />
+              Registos de não conformidade ({db.productionRecords.length})
+              <InfoTip text="Os registos de OF e RNC já colocados no sistema, mês a mês. Clica num registo para ver e editar (OF, RNC, causa, observações), ou cria um novo." />
             </CardTitle>
             <Button size="sm" onClick={() => setEditingRecord('new')}>
               <Plus className="size-4" /> Novo registo
@@ -500,14 +546,22 @@ export function Data({
               <div className="mb-1.5 text-sm font-medium">{g.label}</div>
               <div className="space-y-1.5">
                 {g.recs.map((r) => (
-                  <div key={r.id} className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
+                  <div
+                    key={r.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setEditingRecord(r)}
+                    onKeyDown={(e) => e.key === 'Enter' && setEditingRecord(r)}
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted"
+                    aria-label={`Ver ou editar o registo ${machineName(db, r.machineId)} de ${MONTHS[r.month]} ${r.year}`}
+                  >
                     <span className="size-2.5 shrink-0 rounded-full" style={{ background: sectionColor(r.sectionId) }} />
                     <span className="w-12 font-medium">{machineName(db, r.machineId)}</span>
                     <span className="tabular-nums">{r.jobs} OF</span>
                     <span className="tabular-nums text-muted-foreground">·</span>
                     <span className="tabular-nums">{r.rnc} RNC</span>
                     {r.cause && <Badge variant="outline" className="font-normal">{r.cause}</Badge>}
-                    <span className="ml-auto flex shrink-0 items-center gap-1">
+                    <span className="ml-auto flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon-sm" aria-label="Editar registo" onClick={() => setEditingRecord(r)}>
                         <Pencil className="size-4" />
                       </Button>
@@ -542,24 +596,183 @@ export function Data({
         </CardContent>
       </Card>
 
-      {/* Atalhos para a Estrutura */}
+      {/* Fichas: criar e editar máquinas, áreas, equipas e trabalhadores */}
       <Card className="omp-card-hover">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            Máquinas, equipas e trabalhadores
-            <InfoTip text="Estas fichas criam-se e editam-se na Estrutura (onde está o mapa da fábrica). Estes botões levam-te lá." />
+            <Pencil className="size-4.5 text-muted-foreground" />
+            Fichas — criar e editar
+            <InfoTip text="O único sítio onde se criam e editam máquinas, áreas, equipas e trabalhadores. Os outros ecrãs (Estrutura, Fichas) são de consulta e atualizam-se automaticamente com o que fizeres aqui. Cada alteração fica no histórico." />
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={goStructure}>
-            <Factory className="size-4" /> Máquinas e áreas
-          </Button>
-          <Button variant="outline" onClick={goStructure}>
-            <Boxes className="size-4" /> Equipas
-          </Button>
-          <Button variant="outline" onClick={goStructure}>
-            <Users className="size-4" /> Trabalhadores
-          </Button>
+        <CardContent>
+          <Tabs defaultValue="machines">
+            <TabsList className="w-full">
+              <TabsTrigger value="machines">
+                <Factory className="size-4" /> Máquinas
+              </TabsTrigger>
+              <TabsTrigger value="areas">
+                <SprayCan className="size-4" /> Áreas
+              </TabsTrigger>
+              <TabsTrigger value="teams">
+                <Boxes className="size-4" /> Equipas
+              </TabsTrigger>
+              <TabsTrigger value="workers">
+                <Users className="size-4" /> Trabalhadores
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="machines" className="space-y-1.5">
+              <Button size="sm" className="mb-1" onClick={() => setEditingEntity({ kind: 'machine', value: null })}>
+                <Plus className="size-4" /> Nova máquina
+              </Button>
+              {db.machines.map((m) => (
+                <div key={m.id} className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
+                  <span className="size-2.5 shrink-0 rounded-full" style={{ background: sectionColor(m.sectionId) }} />
+                  <span className="font-medium">{m.name}</span>
+                  <span className="text-xs text-muted-foreground">{sectionName(db, m.sectionId)}</span>
+                  {m.status === 'discontinued' && (
+                    <Badge variant="destructive" className="text-[9px]">descontinuada</Badge>
+                  )}
+                  <span className="ml-auto flex shrink-0 items-center gap-1">
+                    <Button variant="ghost" size="icon-sm" aria-label={`Editar ${m.name}`} onClick={() => setEditingEntity({ kind: 'machine', value: m })}>
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon-sm" aria-label={`Apagar ${m.name}`}
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        setPendingDelete({
+                          title: `Apagar a máquina ${m.name}?`,
+                          description: 'Os registos de produção desta máquina não são apagados — só a ficha da máquina.',
+                          action: () =>
+                            mutate((d) => {
+                              d.machines = d.machines.filter((x) => x.id !== m.id)
+                              logChange(d, { entity: 'machine', entityId: m.id, entityLabel: m.name, action: 'delete' })
+                            }),
+                        })
+                      }
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </span>
+                </div>
+              ))}
+            </TabsContent>
+
+            <TabsContent value="areas" className="space-y-1.5">
+              <Button size="sm" className="mb-1" onClick={() => setEditingEntity({ kind: 'area', value: null })}>
+                <Plus className="size-4" /> Nova área
+              </Button>
+              {db.workAreas.map((a) => (
+                <div key={a.id} className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
+                  <SprayCan className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="font-medium">{a.name}</span>
+                  <Badge variant="outline" className="text-[9px]">Apoio</Badge>
+                  <span className="ml-auto flex shrink-0 items-center gap-1">
+                    <Button variant="ghost" size="icon-sm" aria-label={`Editar ${a.name}`} onClick={() => setEditingEntity({ kind: 'area', value: a })}>
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon-sm" aria-label={`Apagar ${a.name}`}
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        setPendingDelete({
+                          title: `Apagar a área ${a.name}?`,
+                          description: 'O histórico de funções dos trabalhadores que lá passaram mantém-se.',
+                          action: () =>
+                            mutate((d) => {
+                              d.workAreas = d.workAreas.filter((x) => x.id !== a.id)
+                              logChange(d, { entity: 'area', entityId: a.id, entityLabel: a.name, action: 'delete' })
+                            }),
+                        })
+                      }
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </span>
+                </div>
+              ))}
+            </TabsContent>
+
+            <TabsContent value="teams" className="space-y-1.5">
+              <Button size="sm" className="mb-1" onClick={() => setEditingEntity({ kind: 'team', value: null })}>
+                <Plus className="size-4" /> Nova equipa
+              </Button>
+              {db.teams.map((t) => (
+                <div key={t.id} className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
+                  <span className="font-medium">{t.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {machineName(db, t.machineId)} · {teamRegimeLabel(t)}
+                  </span>
+                  <span className="ml-auto flex shrink-0 items-center gap-1">
+                    <Button variant="ghost" size="icon-sm" aria-label={`Editar ${t.name}`} onClick={() => setEditingEntity({ kind: 'team', value: t })}>
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon-sm" aria-label={`Apagar ${t.name}`}
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        setPendingDelete({
+                          title: `Apagar a equipa ${t.name}?`,
+                          description: 'Os trabalhadores desta equipa ficam sem equipa (o histórico deles mantém-se).',
+                          action: () =>
+                            mutate((d) => {
+                              d.teams = d.teams.filter((x) => x.id !== t.id)
+                              d.workers.forEach((wk) => {
+                                if (wk.teamId === t.id) wk.teamId = ''
+                              })
+                              logChange(d, { entity: 'team', entityId: t.id, entityLabel: t.name, action: 'delete' })
+                            }),
+                        })
+                      }
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </span>
+                </div>
+              ))}
+            </TabsContent>
+
+            <TabsContent value="workers" className="space-y-1.5">
+              <Button size="sm" className="mb-1" onClick={() => setEditingEntity({ kind: 'worker', value: null })}>
+                <Plus className="size-4" /> Novo trabalhador
+              </Button>
+              {db.workers.map((w) => (
+                <div key={w.id} className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
+                  <span className="font-medium">{workerLabel(w)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {[w.role, teamName(db, w.teamId)].filter(Boolean).join(' · ')}
+                  </span>
+                  <span className="ml-auto flex shrink-0 items-center gap-1">
+                    <Button variant="ghost" size="icon-sm" aria-label={`Editar ${workerLabel(w)}`} onClick={() => setEditingEntity({ kind: 'worker', value: w })}>
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon-sm" aria-label={`Apagar ${workerLabel(w)}`}
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        setPendingDelete({
+                          title: `Apagar ${workerLabel(w)}?`,
+                          description: 'A ficha e o histórico deste trabalhador são apagados deste dispositivo.',
+                          action: () =>
+                            mutate((d) => {
+                              d.workers = d.workers.filter((x) => x.id !== w.id)
+                              d.teams.forEach((tm) => {
+                                tm.members = (tm.members || []).filter((id) => id !== w.id)
+                              })
+                              logChange(d, { entity: 'worker', entityId: w.id, entityLabel: workerLabel(w), action: 'delete' })
+                            }),
+                        })
+                      }
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </span>
+                </div>
+              ))}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
@@ -644,6 +857,119 @@ export function Data({
           <ChangeLogList entries={db.changeLog ?? []} limit={30} />
         </CardContent>
       </Card>
+
+      {/* Diálogo de ficha (máquina/área/equipa/trabalhador) */}
+      <Dialog open={editingEntity !== null} onOpenChange={(o) => !o && setEditingEntity(null)}>
+        <DialogContent>
+          {editingEntity?.kind === 'machine' && (
+            <MachineForm
+              db={db}
+              initial={editingEntity.value}
+              onCancel={() => setEditingEntity(null)}
+              onSave={(m) => {
+                const prev = editingEntity.value
+                mutate((d) => {
+                  const i = d.machines.findIndex((x) => x.id === m.id)
+                  if (i >= 0) d.machines[i] = m
+                  else d.machines.push(m)
+                  const changes = diffFields(
+                    prev as unknown as Record<string, unknown> | null,
+                    m as unknown as Record<string, unknown>,
+                    machineFieldSpecs(d),
+                  )
+                  if (!prev || changes.length) {
+                    logChange(d, {
+                      entity: 'machine', entityId: m.id, entityLabel: m.name,
+                      action: prev ? 'edit' : 'create', changes: prev ? changes : undefined,
+                    })
+                  }
+                })
+                setEditingEntity(null)
+              }}
+            />
+          )}
+          {editingEntity?.kind === 'area' && (
+            <AreaForm
+              initial={editingEntity.value}
+              onCancel={() => setEditingEntity(null)}
+              onSave={(a) => {
+                const prev = editingEntity.value
+                mutate((d) => {
+                  const i = d.workAreas.findIndex((x) => x.id === a.id)
+                  if (i >= 0) d.workAreas[i] = a
+                  else d.workAreas.push(a)
+                  const changes = diffFields(
+                    prev as unknown as Record<string, unknown> | null,
+                    a as unknown as Record<string, unknown>,
+                    areaFieldSpecs(),
+                  )
+                  if (!prev || changes.length) {
+                    logChange(d, {
+                      entity: 'area', entityId: a.id, entityLabel: a.name,
+                      action: prev ? 'edit' : 'create', changes: prev ? changes : undefined,
+                    })
+                  }
+                })
+                setEditingEntity(null)
+              }}
+            />
+          )}
+          {editingEntity?.kind === 'team' && (
+            <TeamForm
+              db={db}
+              initial={editingEntity.value}
+              onCancel={() => setEditingEntity(null)}
+              onSave={(t) => {
+                const prev = editingEntity.value
+                mutate((d) => {
+                  const i = d.teams.findIndex((x) => x.id === t.id)
+                  if (i >= 0) d.teams[i] = t
+                  else d.teams.push(t)
+                  const changes = diffFields(
+                    prev as unknown as Record<string, unknown> | null,
+                    t as unknown as Record<string, unknown>,
+                    teamFieldSpecs(d),
+                  )
+                  if (!prev || changes.length) {
+                    logChange(d, {
+                      entity: 'team', entityId: t.id, entityLabel: t.name,
+                      action: prev ? 'edit' : 'create', changes: prev ? changes : undefined,
+                    })
+                  }
+                })
+                setEditingEntity(null)
+              }}
+            />
+          )}
+          {editingEntity?.kind === 'worker' && (
+            <WorkerForm
+              db={db}
+              initial={editingEntity.value}
+              onCancel={() => setEditingEntity(null)}
+              onSave={(w) => {
+                const prev = editingEntity.value
+                mutate((d) => {
+                  const i = d.workers.findIndex((x) => x.id === w.id)
+                  if (i >= 0) d.workers[i] = w
+                  else d.workers.push(w)
+                  const changes = diffFields(
+                    prev as unknown as Record<string, unknown> | null,
+                    w as unknown as Record<string, unknown>,
+                    workerFieldSpecs(d),
+                  )
+                  if (!prev || changes.length) {
+                    logChange(d, {
+                      entity: 'worker', entityId: w.id, entityLabel: workerLabel(w),
+                      action: prev ? 'edit' : 'create', changes: prev ? changes : undefined,
+                    })
+                  }
+                })
+                setEditingEntity(null)
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Diálogo de registo */}
       <Dialog open={editingRecord !== null} onOpenChange={(o) => !o && setEditingRecord(null)}>

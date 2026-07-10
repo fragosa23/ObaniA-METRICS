@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import {
+  ArrowLeft,
   LayoutDashboard,
   Factory,
   Boxes,
@@ -40,10 +41,13 @@ export const VIEWS: { id: ViewId; label: string; icon: typeof LayoutDashboard }[
 export function AppShell({
   view,
   onNavigate,
+  onBack,
   children,
 }: {
   view: ViewId
   onNavigate: (v: ViewId) => void
+  /** Voltar um passo na navegação; null = sem histórico (botão escondido). */
+  onBack?: (() => void) | null
   children: ReactNode
 }) {
   const [open, setOpen] = useState(false)
@@ -97,6 +101,12 @@ export function AppShell({
             </div>
           </SheetContent>
         </Sheet>
+
+        {onBack && (
+          <Button variant="ghost" size="icon" aria-label="Voltar ao ecrã anterior" title="Voltar" onClick={onBack}>
+            <ArrowLeft className="size-5" />
+          </Button>
+        )}
 
         <div className="flex items-center gap-2">
           <span className="flex size-7 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">

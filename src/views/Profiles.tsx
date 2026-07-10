@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpRight, Boxes, ChevronRight, Factory, IdCard, Info } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Boxes, ChevronRight, Factory, IdCard, Info, Pencil } from 'lucide-react'
 import {
   Bar,
   CartesianGrid,
@@ -42,6 +42,16 @@ import { taxaTone, toneVar } from '@/lib/severity'
 
 /** Alvo aberto nas Fichas (controlado pelo App para permitir navegação cruzada). */
 export type ProfileTarget = { kind: 'worker' | 'team' | 'machine'; id: string } | null
+
+/** Botão "Editar" das fichas: leva ao menu Dados, onde toda a edição acontece. */
+function EditInData({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <Button variant="outline" size="sm" onClick={onClick} aria-label={label}>
+      <Pencil className="size-4" /> Editar
+      <span className="hidden text-xs font-normal text-muted-foreground sm:inline">· nos Dados</span>
+    </Button>
+  )
+}
 
 /** '2012-03' → 'Mar 2012'; vazio → 'hoje'. */
 function fmtMonth(v?: string): string {
@@ -117,11 +127,13 @@ function WorkerProfile({
   worker,
   onBack,
   onOpen,
+  onEdit,
 }: {
   db: Db
   worker: Worker
   onBack: () => void
   onOpen: (t: ProfileTarget) => void
+  onEdit: () => void
 }) {
   const age = ageFromBirth(worker.birthDate)
   const printMonths = printingMonths(worker)
@@ -134,9 +146,12 @@ function WorkerProfile({
 
   return (
     <div className="space-y-4">
-      <Button variant="outline" size="sm" onClick={onBack}>
-        <ArrowLeft className="size-4" /> Voltar
-      </Button>
+      <div className="flex items-center justify-between gap-2">
+        <Button variant="outline" size="sm" onClick={onBack}>
+          <ArrowLeft className="size-4" /> Voltar
+        </Button>
+        <EditInData onClick={onEdit} label={`Editar ${workerLabel(worker)} no menu Dados`} />
+      </div>
 
       <Card className="omp-card-hover">
         <CardContent className="flex flex-wrap items-center gap-4 px-6 py-5">
@@ -335,19 +350,24 @@ function TeamProfile({
   team,
   onBack,
   onOpen,
+  onEdit,
 }: {
   db: Db
   team: Team
   onBack: () => void
   onOpen: (t: ProfileTarget) => void
+  onEdit: () => void
 }) {
   const members = db.workers.filter((w) => w.teamId === team.id)
 
   return (
     <div className="space-y-4">
-      <Button variant="outline" size="sm" onClick={onBack}>
-        <ArrowLeft className="size-4" /> Voltar
-      </Button>
+      <div className="flex items-center justify-between gap-2">
+        <Button variant="outline" size="sm" onClick={onBack}>
+          <ArrowLeft className="size-4" /> Voltar
+        </Button>
+        <EditInData onClick={onEdit} label={`Editar a equipa ${team.name} no menu Dados`} />
+      </div>
 
       <Card className="omp-card-hover">
         <CardContent className="flex flex-wrap items-center gap-4 px-6 py-5">
@@ -422,6 +442,7 @@ function MachineProfile({
   onBack,
   onOpen,
   onGoProduction,
+  onEdit,
   assistantOn,
 }: {
   db: Db
@@ -429,6 +450,7 @@ function MachineProfile({
   onBack: () => void
   onOpen: (t: ProfileTarget) => void
   onGoProduction: () => void
+  onEdit: () => void
   assistantOn: boolean
 }) {
   const teams = db.teams.filter((t) => t.machineId === machine.id)
@@ -456,9 +478,12 @@ function MachineProfile({
 
   return (
     <div className="space-y-4">
-      <Button variant="outline" size="sm" onClick={onBack}>
-        <ArrowLeft className="size-4" /> Voltar
-      </Button>
+      <div className="flex items-center justify-between gap-2">
+        <Button variant="outline" size="sm" onClick={onBack}>
+          <ArrowLeft className="size-4" /> Voltar
+        </Button>
+        <EditInData onClick={onEdit} label={`Editar a máquina ${machine.name} no menu Dados`} />
+      </div>
 
       <Card className="omp-card-hover">
         <CardContent className="flex flex-wrap items-center gap-4 px-6 py-5">
@@ -636,24 +661,43 @@ export function Profiles({
   sel,
   onSelChange,
   onGoProduction,
+  onEdit,
   assistantOn,
 }: {
   db: Db
   sel: ProfileTarget
   onSelChange: (t: ProfileTarget) => void
   onGoProduction: () => void
+  /** Abre a edição desta entidade no menu Dados (toda a edição acontece lá). */
+  onEdit: (t: { kind: 'machine' | 'team' | 'worker'; id: string }) => void
   assistantOn: boolean
 }) {
   if (sel?.kind === 'worker') {
     const worker = db.workers.find((w) => w.id === sel.id)
     if (worker) {
-      return <WorkerProfile db={db} worker={worker} onBack={() => onSelChange(null)} onOpen={onSelChange} />
+      return (
+        <WorkerProfile
+          db={db}
+          worker={worker}
+          onBack={() => onSelChange(null)}
+          onOpen={onSelChange}
+          onEdit={() => onEdit({ kind: 'worker', id: worker.id })}
+        />
+      )
     }
   }
   if (sel?.kind === 'team') {
     const team = db.teams.find((t) => t.id === sel.id)
     if (team) {
-      return <TeamProfile db={db} team={team} onBack={() => onSelChange(null)} onOpen={onSelChange} />
+      return (
+        <TeamProfile
+          db={db}
+          team={team}
+          onBack={() => onSelChange(null)}
+          onOpen={onSelChange}
+          onEdit={() => onEdit({ kind: 'team', id: team.id })}
+        />
+      )
     }
   }
   if (sel?.kind === 'machine') {
@@ -666,6 +710,7 @@ export function Profiles({
           onBack={() => onSelChange(null)}
           onOpen={onSelChange}
           onGoProduction={onGoProduction}
+          onEdit={() => onEdit({ kind: 'machine', id: machine.id })}
           assistantOn={assistantOn}
         />
       )
