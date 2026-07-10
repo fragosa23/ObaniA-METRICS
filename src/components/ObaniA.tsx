@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
-import { ConfirmDialog } from '@/components/ConfirmDialog'
 import type { Insight } from '@/lib/insights'
 import { toneVar } from '@/lib/severity'
 
 /** Mascote do assistente: o "O" da ObaniA com olhos que piscam. */
-function Mascot({ size = 'md' }: { size?: 'md' | 'sm' }) {
-  const cls = size === 'md' ? 'size-11 rounded-2xl text-xl' : 'size-8 rounded-xl text-sm'
+export function Mascot({ size = 'md' }: { size?: 'md' | 'sm' | 'xs' }) {
+  const cls =
+    size === 'md' ? 'size-11 rounded-2xl text-xl' : size === 'sm' ? 'size-8 rounded-xl text-sm' : 'size-6 rounded-lg text-xs'
   return (
     <span
       className={`omp-mascot relative flex shrink-0 items-center justify-center font-bold text-white ${cls}`}
@@ -29,16 +29,13 @@ function Mascot({ size = 'md' }: { size?: 'md' | 'sm' }) {
 export function ObaniA({
   insights,
   enabled,
-  onDisable,
 }: {
   insights: Insight[]
   enabled: boolean
-  onDisable: () => void
 }) {
   // Em ecrãs pequenos começa recolhido (só o pontinho avisa) — para nunca tapar o conteúdo.
   const isWide = () => window.matchMedia('(min-width: 640px)').matches
   const [open, setOpen] = useState(isWide)
-  const [confirmClose, setConfirmClose] = useState(false)
 
   // Assinatura do conjunto de sugestões: quando muda (novo período), reabre o balão (em ecrã largo).
   const signature = useMemo(() => insights.map((i) => i.id).join('|'), [insights])
@@ -78,8 +75,9 @@ export function ObaniA({
             </div>
             <button
               type="button"
-              aria-label="Fechar o assistente"
-              onClick={() => setConfirmClose(true)}
+              aria-label="Fechar as sugestões (o assistente desliga-se em Configurações)"
+              title="Fecha o balão. Para desligar o assistente de vez, vai a Configurações."
+              onClick={() => setOpen(false)}
               className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <X className="size-4" />
@@ -100,22 +98,10 @@ export function ObaniA({
           </div>
 
           <div className="border-t px-3.5 py-2 text-[10px] text-muted-foreground">
-            Baseado apenas nos dados registados — nunca invento valores.
+            Baseado apenas nos dados registados — nunca invento valores. Desliga-se em Configurações.
           </div>
         </div>
       )}
-
-      <ConfirmDialog
-        open={confirmClose}
-        title="Fechar o assistente ObaniA?"
-        description="Deixa de mostrar sugestões. Pode ser ligado de novo no menu Configurações."
-        confirmLabel="Fechar assistente"
-        onCancel={() => setConfirmClose(false)}
-        onConfirm={() => {
-          setConfirmClose(false)
-          onDisable()
-        }}
-      />
     </>
   )
 }

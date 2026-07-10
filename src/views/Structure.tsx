@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/select'
 import { InfoTip } from '@/components/InfoTip'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import type { ProfileTarget } from '@/views/Profiles'
 import type {
   Db,
   Machine,
@@ -60,7 +61,7 @@ import {
   uid,
   workerLabel,
 } from '@/lib/db'
-import { SECTION_COLORS } from '@/lib/colors'
+import { SECTION_COLORS, sectionColor } from '@/lib/colors'
 
 const NONE = '__none__'
 
@@ -74,6 +75,84 @@ function SectionDot({ id }: { id: string }) {
       className="inline-block size-2.5 shrink-0 rounded-full"
       style={{ background: SECTION_COLORS[id] ?? 'var(--muted-foreground)' }}
     />
+  )
+}
+
+/** "Unidade" de máquina no mapa da fábrica: nome por cima, máquina desenhada, luz de estado. */
+function MachineSprite({
+  machine,
+  onClick,
+  big = false,
+}: {
+  machine: Machine
+  onClick?: () => void
+  big?: boolean
+}) {
+  const color = sectionColor(machine.sectionId)
+  const active = machine.status !== 'discontinued'
+  const body = (
+    <>
+      <span className="rounded-md border bg-background/85 px-2 py-0.5 text-xs font-semibold shadow-sm">
+        {machine.name}
+      </span>
+      <svg
+        width={big ? 110 : 78}
+        height={big ? 78 : 56}
+        viewBox="0 0 64 46"
+        aria-hidden="true"
+        className="omp-unit-svg"
+      >
+        {/* rolos de impressão */}
+        <circle cx="16" cy="11" r="7" fill={`color-mix(in srgb, ${color} 55%, white)`} />
+        <circle cx="32" cy="11" r="7" fill={`color-mix(in srgb, ${color} 40%, white)`} />
+        <circle cx="48" cy="11" r="7" fill={`color-mix(in srgb, ${color} 55%, white)`} />
+        {/* corpo da máquina */}
+        <rect x="4" y="15" width="56" height="21" rx="3.5" fill={color} />
+        {/* papel a sair */}
+        <rect x="9" y="30" width="22" height="12" rx="1.5" fill="white" opacity="0.9" />
+        {/* base */}
+        <rect x="6" y="41" width="52" height="4" rx="2" fill={`color-mix(in srgb, ${color} 45%, black)`} />
+        {/* luz de estado: verde a pulsar = ativa; vermelha = descontinuada */}
+        <circle
+          cx="53"
+          cy="21"
+          r="3.2"
+          fill={active ? 'var(--success)' : 'var(--destructive)'}
+          className={active ? 'omp-led' : ''}
+        />
+      </svg>
+      {!active && <span className="text-[10px] font-medium text-destructive/80">descontinuada</span>}
+    </>
+  )
+  if (!onClick) return <span className="flex flex-col items-center gap-1">{body}</span>
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Abrir a máquina ${machine.name}`}
+      className="omp-unit flex flex-col items-center gap-1 rounded-xl p-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/60"
+    >
+      {body}
+    </button>
+  )
+}
+
+/** "Unidade" de área de apoio no mapa. */
+function AreaSprite({ area, onClick }: { area: WorkArea; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Abrir a área ${area.name}`}
+      className="omp-unit flex flex-col items-center gap-1 rounded-xl p-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/60"
+    >
+      <span className="max-w-[130px] truncate rounded-md border bg-background/85 px-2 py-0.5 text-xs font-semibold shadow-sm">
+        {area.name}
+      </span>
+      <span className="omp-unit-svg flex size-12 items-center justify-center rounded-lg border bg-muted">
+        <SprayCan className="size-5 text-muted-foreground" />
+      </span>
+    </button>
   )
 }
 
@@ -646,9 +725,19 @@ interface PendingDelete {
   action: () => void
 }
 
-export function Structure({ db, onChange }: { db: Db; onChange: (db: Db) => void }) {
+export function Structure({
+  db,
+  onChange,
+  onOpenProfile,
+}: {
+  db: Db
+  onChange: (db: Db) => void
+  onOpenProfile: (t: ProfileTarget) => void
+}) {
   const [editing, setEditing] = useState<Editing>(null)
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+  // Unidade "focada" no mapa (zoom sobre uma máquina ou área).
+  const [focus, setFocus] = useState<{ kind: 'machine' | 'area'; id: string } | null>(null)
   // Pesquisa e filtro no separador Trabalhadores (essenciais com centenas de fichas).
   const [workerQuery, setWorkerQuery] = useState('')
   const [workerTeamFilter, setWorkerTeamFilter] = useState<string>('all')
@@ -713,98 +802,63 @@ export function Structure({ db, onChange }: { db: Db; onChange: (db: Db) => void
           </TabsTrigger>
         </TabsList>
 
-        {/* ------------------------------------------------ Máquinas e Áreas */}
-        <TabsContent value="machines" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <ListHead
-                icon={Factory}
-                title="Máquinas"
-                info="Máquinas de impressão (Flexografia, Rotogravura, Offset). Produzem trabalhos (OF) e defeitos (RNC) — são estas que aparecem no Dashboard e na Produção."
-                count={db.machines.length}
-                addLabel="Nova máquina"
-                onAdd={() => setEditing({ kind: 'machine', value: null })}
-              />
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {db.machines.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center gap-3 rounded-lg border p-3"
-                >
-                  <SectionDot id={m.sectionId} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{m.name}</span>
-                      <Badge variant="outline" className="gap-1">
-                        {sectionName(db, m.sectionId)}
-                      </Badge>
-                      <Badge variant="secondary" className="text-[10px]">
-                        Produção
-                      </Badge>
-                      {m.status === 'discontinued' && (
-                        <Badge variant="destructive" className="text-[10px]">
-                          Descontinuada
-                        </Badge>
-                      )}
-                    </div>
-                    {m.status === 'discontinued' && m.statusNote && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">{m.statusNote}</p>
-                    )}
-                  </div>
-                  <RowActions
-                    onEdit={() => setEditing({ kind: 'machine', value: m })}
-                    onDelete={() =>
-                      setPendingDelete({
-                        title: `Apagar a máquina ${m.name}?`,
-                        description: 'Os registos de produção desta máquina não são apagados — só a ficha da máquina.',
-                        action: () => mutate((d) => { d.machines = d.machines.filter((x) => x.id !== m.id) }),
-                      })
-                    }
-                  />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+        {/* ------------------------------------------------ Máquinas e Áreas (mapa) */}
+        <TabsContent value="machines" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Factory className="size-4.5 text-muted-foreground" />
+              <h2 className="font-semibold">Mapa da fábrica</h2>
+              <InfoTip text="A fábrica vista de cima: cada máquina é uma unidade no mapa, com a luz verde a pulsar quando está ativa (vermelha = descontinuada). Clica numa máquina ou área para fazer zoom e ver as equipas, turnos e detalhes." />
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setEditing({ kind: 'area', value: null })}>
+                <Plus className="size-4" /> Nova área
+              </Button>
+              <Button size="sm" onClick={() => setEditing({ kind: 'machine', value: null })}>
+                <Plus className="size-4" /> Nova máquina
+              </Button>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <ListHead
-                icon={SprayCan}
-                title="Áreas de apoio"
-                info="Sítios sem OF nem RNC (ex.: Montagem de Cilindros, Montagem de Clichês, Limpeza). Servem para o histórico de funções dos trabalhadores — não entram nos gráficos de produção."
-                count={db.workAreas.length}
-                addLabel="Nova área"
-                onAdd={() => setEditing({ kind: 'area', value: null })}
-              />
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {db.workAreas.map((a) => (
-                <div key={a.id} className="flex items-center gap-3 rounded-lg border p-3">
-                  <SprayCan className="size-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{a.name}</span>
-                      <Badge variant="outline" className="text-[10px]">
-                        Apoio
-                      </Badge>
-                    </div>
-                    {a.notes && <p className="mt-0.5 text-xs text-muted-foreground">{a.notes}</p>}
-                  </div>
-                  <RowActions
-                    onEdit={() => setEditing({ kind: 'area', value: a })}
-                    onDelete={() =>
-                      setPendingDelete({
-                        title: `Apagar a área ${a.name}?`,
-                        description: 'O histórico de funções dos trabalhadores que lá passaram mantém-se.',
-                        action: () => mutate((d) => { d.workAreas = d.workAreas.filter((x) => x.id !== a.id) }),
-                      })
-                    }
-                  />
+          {db.sections
+            .filter((s) => db.machines.some((m) => m.sectionId === s.id))
+            .map((s) => (
+              <div key={s.id} className="omp-zone p-4">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                  <SectionDot id={s.id} />
+                  {s.name}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    ({db.machines.filter((m) => m.sectionId === s.id).length}{' '}
+                    {db.machines.filter((m) => m.sectionId === s.id).length === 1 ? 'máquina' : 'máquinas'})
+                  </span>
+                  <InfoTip text={`Secção de impressão ${s.name}. Clica numa máquina para ver quem lá trabalha.`} />
                 </div>
+                <div className="flex flex-wrap gap-2">
+                  {db.machines
+                    .filter((m) => m.sectionId === s.id)
+                    .map((m) => (
+                      <MachineSprite key={m.id} machine={m} onClick={() => setFocus({ kind: 'machine', id: m.id })} />
+                    ))}
+                </div>
+              </div>
+            ))}
+
+          <div className="omp-zone p-4">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+              <SprayCan className="size-4 text-muted-foreground" />
+              Áreas de apoio
+              <span className="text-xs font-normal text-muted-foreground">({db.workAreas.length})</span>
+              <InfoTip text="Sítios sem OF nem RNC (ex.: Montagem de Cilindros, Limpeza). Servem para o histórico de funções dos trabalhadores — não entram nos gráficos de produção." />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {db.workAreas.map((a) => (
+                <AreaSprite key={a.id} area={a} onClick={() => setFocus({ kind: 'area', id: a.id })} />
               ))}
-            </CardContent>
-          </Card>
+              {db.workAreas.length === 0 && (
+                <p className="text-sm text-muted-foreground">Sem áreas de apoio — cria uma em "Nova área".</p>
+              )}
+            </div>
+          </div>
         </TabsContent>
 
         {/* ------------------------------------------------ Equipas */}
@@ -1031,6 +1085,211 @@ export function Structure({ db, onChange }: { db: Db; onChange: (db: Db) => void
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Zoom sobre uma unidade do mapa (máquina ou área) */}
+      <Dialog open={focus !== null} onOpenChange={(o) => !o && setFocus(null)}>
+        <DialogContent className="max-w-md">
+          {focus?.kind === 'machine' &&
+            (() => {
+              const m = db.machines.find((x) => x.id === focus.id)
+              if (!m) return null
+              const teams = db.teams.filter((t) => t.machineId === m.id)
+              return (
+                <>
+                  <DialogHeader>
+                    <div className="flex items-center gap-4">
+                      <MachineSprite machine={m} big />
+                      <div className="min-w-0">
+                        <DialogTitle className="text-xl">{m.name}</DialogTitle>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          <Badge variant="outline" className="gap-1">
+                            <SectionDot id={m.sectionId} />
+                            {sectionName(db, m.sectionId)}
+                          </Badge>
+                          {m.status === 'discontinued' ? (
+                            <Badge variant="destructive">Descontinuada</Badge>
+                          ) : (
+                            <Badge variant="secondary">Ativa</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <DialogDescription className="sr-only">
+                      Detalhe da máquina {m.name}: equipas, turnos e ações.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 text-sm font-medium">
+                      Equipas nesta máquina ({teams.length})
+                      <InfoTip text="Clica numa equipa ou num trabalhador para abrir a ficha respetiva." />
+                    </div>
+                    {teams.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Sem equipas associadas.</p>
+                    )}
+                    {teams.map((t) => {
+                      const members = db.workers.filter((w) => w.teamId === t.id)
+                      return (
+                        <div key={t.id} className="rounded-lg border p-2.5">
+                          <button
+                            type="button"
+                            className="flex w-full flex-wrap items-center gap-2 text-left"
+                            onClick={() => {
+                              setFocus(null)
+                              onOpenProfile({ kind: 'team', id: t.id })
+                            }}
+                          >
+                            <span className="text-sm font-medium hover:underline">{t.name}</span>
+                            <Badge variant="secondary" className="font-normal">
+                              {teamRegimeLabel(t)}
+                            </Badge>
+                          </button>
+                          {members.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {members.map((w) => (
+                                <button
+                                  key={w.id}
+                                  type="button"
+                                  className="rounded-full border px-2 py-0.5 text-xs transition-colors hover:bg-muted"
+                                  onClick={() => {
+                                    setFocus(null)
+                                    onOpenProfile({ kind: 'worker', id: w.id })
+                                  }}
+                                >
+                                  {workerLabel(w)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <DialogFooter className="sm:justify-between">
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFocus(null)
+                          setEditing({ kind: 'machine', value: m })
+                        }}
+                      >
+                        <Pencil className="size-4" /> Editar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          setFocus(null)
+                          setPendingDelete({
+                            title: `Apagar a máquina ${m.name}?`,
+                            description:
+                              'Os registos de produção desta máquina não são apagados — só a ficha da máquina.',
+                            action: () => mutate((d) => { d.machines = d.machines.filter((x) => x.id !== m.id) }),
+                          })
+                        }}
+                      >
+                        <Trash2 className="size-4" /> Apagar
+                      </Button>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setFocus(null)
+                        onOpenProfile({ kind: 'machine', id: m.id })
+                      }}
+                    >
+                      Detalhes — ficha completa
+                    </Button>
+                  </DialogFooter>
+                </>
+              )
+            })()}
+
+          {focus?.kind === 'area' &&
+            (() => {
+              const a = db.workAreas.find((x) => x.id === focus.id)
+              if (!a) return null
+              const people = db.workers.filter((w) => w.placeKind === 'area' && w.placeId === a.id)
+              return (
+                <>
+                  <DialogHeader>
+                    <div className="flex items-center gap-4">
+                      <span className="flex size-14 items-center justify-center rounded-xl border bg-muted">
+                        <SprayCan className="size-6 text-muted-foreground" />
+                      </span>
+                      <div>
+                        <DialogTitle className="text-xl">{a.name}</DialogTitle>
+                        <div className="mt-1.5">
+                          <Badge variant="outline">Área de apoio · sem OF/RNC</Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <DialogDescription>
+                      {a.notes || 'Área de apoio à produção — serve para o histórico de funções dos trabalhadores.'}
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">A trabalhar aqui ({people.length})</div>
+                    {people.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Ninguém com função atual nesta área.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {people.map((w) => (
+                          <button
+                            key={w.id}
+                            type="button"
+                            className="rounded-full border px-2 py-0.5 text-xs transition-colors hover:bg-muted"
+                            onClick={() => {
+                              setFocus(null)
+                              onOpenProfile({ kind: 'worker', id: w.id })
+                            }}
+                          >
+                            {workerLabel(w)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFocus(null)
+                        setEditing({ kind: 'area', value: a })
+                      }}
+                    >
+                      <Pencil className="size-4" /> Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        setFocus(null)
+                        setPendingDelete({
+                          title: `Apagar a área ${a.name}?`,
+                          description: 'O histórico de funções dos trabalhadores que lá passaram mantém-se.',
+                          action: () => mutate((d) => { d.workAreas = d.workAreas.filter((x) => x.id !== a.id) }),
+                        })
+                      }}
+                    >
+                      <Trash2 className="size-4" /> Apagar
+                    </Button>
+                  </DialogFooter>
+                </>
+              )
+            })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Diálogo de edição/criação */}
       <Dialog open={editing !== null} onOpenChange={(o) => !o && close()}>

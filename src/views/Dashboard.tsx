@@ -385,15 +385,7 @@ function MachineRanking({
 // Dashboard
 // ---------------------------------------------------------------------------
 
-export function Dashboard({
-  db,
-  assistantOn,
-  onAssistantDisable,
-}: {
-  db: Db
-  assistantOn: boolean
-  onAssistantDisable: () => void
-}) {
+export function Dashboard({ db, assistantOn }: { db: Db; assistantOn: boolean }) {
   const allRecords = recordsFor(db, {})
 
   // Períodos disponíveis: o ano inteiro e cada mês com dados registados.
@@ -688,7 +680,7 @@ export function Dashboard({
         </CardContent>
       </Card>
 
-      <ObaniA insights={insights} enabled={assistantOn} onDisable={onAssistantDisable} />
+      <ObaniA insights={insights} enabled={assistantOn} />
     </div>
   )
 }

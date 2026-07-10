@@ -274,6 +274,35 @@
 }
 .omp-assistant-btn:hover { transform: translateY(-2px) scale(1.04); }
 
+/* Ícone de análise nos cantos dos gráficos. */
+.omp-review-btn { transition: transform 0.15s ease, filter 0.15s ease; }
+.omp-review-btn:hover { transform: scale(1.12); filter: brightness(1.15); }
+
+/* ===== Mapa da fábrica (Estrutura) ========================================== */
+
+/* Zona do mapa: "terreno" com grelha subtil, como num jogo de estratégia. */
+.omp-zone {
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 23px, oklch(1 0 0 / 2.5%) 23px 24px),
+    repeating-linear-gradient(90deg, transparent 0 23px, oklch(1 0 0 / 2.5%) 23px 24px),
+    var(--card);
+}
+
+/* Unidade (máquina/área): levanta e ganha brilho ao passar por cima. */
+.omp-unit { transition: transform 0.18s ease, background-color 0.18s ease; }
+.omp-unit:hover { transform: translateY(-3px) scale(1.05); background: oklch(1 0 0 / 4%); }
+.omp-unit-svg { filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.35)); transition: filter 0.18s ease; }
+.omp-unit:hover .omp-unit-svg { filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5)) brightness(1.08); }
+
+/* Luz de estado da máquina (verde a pulsar = em produção). */
+@keyframes omp-led-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.omp-led { animation: omp-led-blink 1.6s ease-in-out infinite; }
+
 /* Ponto de notificação quando o balão está fechado mas há sugestões. */
 .omp-assistant-dot {
   position: absolute;
@@ -294,6 +323,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .omp-in, .omp-spark, .omp-bar, .omp-panel-in, .omp-eye,
-  .omp-blob-1, .omp-blob-2, .omp-assistant-dot { animation: none; }
-  .omp-ring, .omp-card-hover, .omp-assistant-btn { transition: none; }
+  .omp-blob-1, .omp-blob-2, .omp-assistant-dot, .omp-led { animation: none; }
+  .omp-ring, .omp-card-hover, .omp-assistant-btn, .omp-unit, .omp-review-btn { transition: none; }
 }

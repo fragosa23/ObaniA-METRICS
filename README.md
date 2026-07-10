@@ -48,18 +48,21 @@ A app foi **reconstruída de raiz** em React, mantendo o modelo de dados e os da
 
 #### Assistente ObaniA 🤖
 - Mascote da app num balão flutuante no Dashboard, com **sugestões sobre o período selecionado**: máquinas acima da meta, taxa a subir/descer, meses sem registos, RNC sem causa, máquinas sem defeitos.
+- **Análises por gráfico na Produção e na ficha da máquina**: um ícone do ObaniA no canto de cada gráfico abre a análise desse gráfico em concreto (ex.: "IF3 é a melhor máquina do ano; os RNC subiram em Junho mas a média continua melhor que a das outras").
 - Baseado **apenas nos dados registados** (regras locais) — nunca inventa valores.
-- Fechável na cruz (com confirmação); religa-se em **Configurações**. Em ecrãs pequenos começa recolhido para não tapar conteúdo.
+- A cruz do balão só o recolhe; **desligar de vez faz-se em Configurações**. Em ecrãs pequenos começa recolhido para não tapar conteúdo.
 
 #### Configurações
 - Ligar/desligar o assistente ObaniA (preferência do dispositivo).
 - **Meta da taxa de RNC** (viaja com a exportação de dados).
 - **Horários e Turnos**: gerir os horários disponíveis para equipas de turno fixo.
 
-#### Fichas (informativas)
+#### Fichas (tudo ligado)
+- Ficha de cada **máquina**: dados técnicos, gráfico de produção do ano (clicar leva à página Produção), análise do ObaniA, equipas e membros — todos clicáveis.
 - Ficha de cada **trabalhador**: idade (calculada da data de nascimento), percurso de funções (cronologia com durações), tempo por equipa (com gráfico circular), observações.
-- Ficha de cada **equipa**: máquina, regime de turno, membros (com ligação às fichas individuais).
-- Nota honesta em ambas: a produção por pessoa/equipa fica indisponível **até os registos de OF identificarem quem os produziu** — a app não finge dados que não tem.
+- Ficha de cada **equipa**: máquina (→ ficha da máquina), regime de turno, membros (→ fichas individuais).
+- **Navegação cruzada em toda a app**: do mapa da fábrica para as fichas, de uma ficha para outra, e das fichas para a Produção.
+- Nota honesta: a produção por pessoa/equipa fica indisponível **até os registos de OF identificarem quem os produziu** — a app não finge dados que não tem.
 
 #### Produção
 - Seletor de ano (pronto para quando houver dados de anos anteriores).
@@ -69,7 +72,7 @@ A app foi **reconstruída de raiz** em React, mantendo o modelo de dados e os da
 
 #### Estrutura
 - Três separadores: **Máquinas e Áreas**, **Equipas** e **Trabalhadores** — ver, criar, editar e apagar.
-- **Máquinas e Áreas** — máquinas de impressão (Flexografia, Rotogravura e agora **Offset**), com etiqueta *Produção*, e **áreas de apoio** (Montagem de Cilindros, Montagem de Clichês, Limpeza) com etiqueta *Apoio*. As áreas não entram nos gráficos de OF/RNC; servem para o histórico de funções.
+- **Máquinas e Áreas** — um **mapa da fábrica** (estilo jogo de estratégia): cada máquina é uma unidade desenhada com o nome por cima e uma luz de estado (verde a pulsar = ativa, vermelha = descontinuada), agrupada por secção (Flexografia, Rotogravura, **Offset**) e com as **áreas de apoio** na sua zona. Clicar numa unidade faz zoom: equipas, turnos e membros dessa máquina, com botões Editar/Apagar e **"Detalhes — ficha completa"**.
 - **Equipas** — cada equipa associada a uma máquina, com **regime de turno** (rotativo M/T/N, rotativo M/T, ou fixo com turno + horário). A distribuição de turnos cumpridos aparecerá quando os registos de produção identificarem a equipa.
 - **Trabalhadores** — lista com total, **pesquisa por nº/nome e filtro por equipa**, função, equipa, idade calculada da data de nascimento e tempo a imprimir. Ao mudar de equipa ou função, o **histórico atualiza-se sozinho** (fecha a passagem anterior e abre a nova, com datas).
 

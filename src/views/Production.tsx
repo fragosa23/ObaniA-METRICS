@@ -23,9 +23,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { InfoTip } from '@/components/InfoTip'
+import { ChartReview } from '@/components/ChartReview'
 import type { Db, Machine, ProductionRecord } from '@/lib/types'
 import { aggregate, fmt, MONTHS, recordsFor, sectionName } from '@/lib/db'
 import { machineColor, sectionColor } from '@/lib/colors'
+import {
+  reviewMachineEvolution,
+  reviewMachinesChart,
+  reviewSectionEvolution,
+  reviewTrendChart,
+} from '@/lib/insights'
 import { taxaTone, toneVar, type Tone } from '@/lib/severity'
 
 function machineInfo(db: Db, m: Machine): string {
@@ -40,7 +47,7 @@ const BARS_HEIGHT = 240
 /** Barras verticais com todas as máquinas: Flexografia primeiro, Rotogravura depois.
  *  Barra = OF (cor da secção). Número grande ao lado = RNC (cor por severidade).
  *  A melhor e a pior máquina (por taxa) ficam destacadas com 👍 / 👎 animados. */
-function MachinesChart({ db, year }: { db: Db; year: number }) {
+function MachinesChart({ db, year, assistantOn }: { db: Db; year: number; assistantOn: boolean }) {
   const all = recordsFor(db, { year })
   const rows = [...db.machines]
     .sort((a, b) => (SECTION_ORDER[a.sectionId] ?? 9) - (SECTION_ORDER[b.sectionId] ?? 9))
@@ -63,6 +70,11 @@ function MachinesChart({ db, year }: { db: Db; year: number }) {
         <CardTitle className="flex flex-wrap items-center gap-2 text-base">
           Trabalhos e defeitos por máquina
           <InfoTip text="Todas as máquinas juntas para comparar a secção de impressão e as suas duas sub-secções. A barra é o OF (trabalhos), na cor da secção. O número grande ao lado é o RNC (defeitos), com cor pela taxa. A melhor e a pior máquina estão destacadas com 👍 e 👎." />
+          {assistantOn && (
+            <span className="ml-auto">
+              <ChartReview insights={reviewMachinesChart(db, year)} label="Trabalhos e defeitos por máquina" />
+            </span>
+          )}
         </CardTitle>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
@@ -190,7 +202,7 @@ function SinglePointTooltip({
   )
 }
 
-function TrendChart({ db, year }: { db: Db; year: number }) {
+function TrendChart({ db, year, assistantOn }: { db: Db; year: number; assistantOn: boolean }) {
   const [metric, setMetric] = useState<'of' | 'rnc'>('of')
   const [sectionFilter, setSectionFilter] = useState<'all' | 'flexo' | 'roto'>('all')
   const [hovered, setHovered] = useState<string | null>(null)
@@ -244,6 +256,11 @@ function TrendChart({ db, year }: { db: Db; year: number }) {
         <CardTitle className="flex flex-wrap items-center gap-1.5 text-base">
           Tendência ao longo dos meses
           <InfoTip text="Evolução mês a mês de cada máquina. Passa o cursor sobre um ponto para ver o valor dessa máquina nesse mês. Clica numa máquina na legenda para a esconder/mostrar e isolar as que interessam." />
+          {assistantOn && (
+            <span className="ml-auto">
+              <ChartReview insights={reviewTrendChart(db, year)} label="Tendência ao longo dos meses" />
+            </span>
+          )}
         </CardTitle>
         <div className="flex flex-wrap gap-3 pt-2">
           <div className="flex gap-1.5">
@@ -405,6 +422,7 @@ function EvolutionCard({
   height = 210,
   bestProd = false,
   worstRnc = false,
+  review,
 }: {
   title: string
   color: string
@@ -413,6 +431,7 @@ function EvolutionCard({
   height?: number
   bestProd?: boolean
   worstRnc?: boolean
+  review?: { insights: import('@/lib/insights').Insight[]; label: string }
 }) {
   const series = evoSeries(records)
   const total = aggregate(records)
@@ -443,15 +462,18 @@ function EvolutionCard({
               </span>
             )}
           </CardTitle>
-          {series.length > 0 && (
-            <div className="shrink-0 text-right text-xs leading-tight">
-              <div className="text-muted-foreground">Total</div>
-              <div className="font-semibold tabular-nums">
-                {total.of} OF · <span style={{ color: toneVar[taxaTone(total.taxa)] }}>{total.rnc} RNC</span>
+          <div className="flex shrink-0 items-start gap-2">
+            {series.length > 0 && (
+              <div className="text-right text-xs leading-tight">
+                <div className="text-muted-foreground">Total</div>
+                <div className="font-semibold tabular-nums">
+                  {total.of} OF · <span style={{ color: toneVar[taxaTone(total.taxa)] }}>{total.rnc} RNC</span>
+                </div>
+                <div className="tabular-nums text-muted-foreground">{fmt(total.taxa)}</div>
               </div>
-              <div className="tabular-nums text-muted-foreground">{fmt(total.taxa)}</div>
-            </div>
-          )}
+            )}
+            {review && <ChartReview insights={review.insights} label={review.label} />}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
@@ -569,7 +591,7 @@ function EvoTooltip({ active, payload }: { active?: boolean; payload?: { payload
   )
 }
 
-export function Production({ db }: { db: Db }) {
+export function Production({ db, assistantOn }: { db: Db; assistantOn: boolean }) {
   const years = [...new Set(db.productionRecords.map((r) => r.year))].sort((a, b) => b - a)
   const [year, setYear] = useState(years[0] ?? new Date().getFullYear())
 
@@ -599,8 +621,8 @@ export function Production({ db }: { db: Db }) {
         </div>
       </div>
 
-      <MachinesChart db={db} year={year} />
-      <TrendChart db={db} year={year} />
+      <MachinesChart db={db} year={year} assistantOn={assistantOn} />
+      <TrendChart db={db} year={year} assistantOn={assistantOn} />
 
       {db.sections.map((section) => {
         const machines = db.machines.filter((m) => m.sectionId === section.id)
@@ -620,6 +642,11 @@ export function Production({ db }: { db: Db }) {
               records={recordsFor(db, { sectionId: section.id, year })}
               info={`Mês a mês, ${section.name}: barras = OF (trabalhos), linha = RNC (defeitos). Por baixo, a variação face ao mês anterior — verde é bom, vermelho é mau.`}
               height={220}
+              review={
+                assistantOn
+                  ? { insights: reviewSectionEvolution(db, section.id, year), label: `Evolução — ${section.name}` }
+                  : undefined
+              }
             />
             <div className="grid gap-3 md:grid-cols-2">
               {machines.map((m) => (
@@ -632,6 +659,11 @@ export function Production({ db }: { db: Db }) {
                   height={170}
                   bestProd={m.id === bestProdId}
                   worstRnc={m.id === worstRncId}
+                  review={
+                    assistantOn
+                      ? { insights: reviewMachineEvolution(db, m.id, year), label: `Máquina ${m.name}` }
+                      : undefined
+                  }
                 />
               ))}
             </div>
