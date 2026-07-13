@@ -26,7 +26,7 @@ import {
 import { healthIndex, sectionTotals } from '@/lib/health'
 import { dashboardInsights } from '@/lib/insights'
 import { taxaTone, toneVar, type Tone } from '@/lib/severity'
-import { SECTION_COLORS } from '@/lib/colors'
+import { SECTION_COLORS, sectionColor } from '@/lib/colors'
 
 function machineInfo(db: Db, id: string): string {
   const m = db.machines.find((x) => x.id === id)
@@ -314,64 +314,86 @@ function SectionDonut({
   )
 }
 
-function MachineRanking({
-  db,
-  title,
-  info,
-  metric,
-  records,
-  colorByTone,
-}: {
-  db: Db
-  title: string
-  info: string
-  metric: 'of' | 'rnc'
-  records: ProductionRecord[]
-  colorByTone: boolean
-}) {
-  const items = db.machines
+function MachineOverview({ db, records }: { db: Db; records: ProductionRecord[] }) {
+  const rows = db.machines
     .map((m) => ({ m, a: aggregate(records.filter((r) => r.machineId === m.id)) }))
-    .filter((x) => (metric === 'of' ? x.a.of > 0 : x.a.rnc > 0))
-    .sort((a, b) => (metric === 'of' ? b.a.of - a.a.of : b.a.rnc - a.a.rnc))
-    .slice(0, 3)
-  const max = Math.max(...items.map((x) => (metric === 'of' ? x.a.of : x.a.rnc)), 1)
+    .filter((x) => x.a.of > 0 || x.a.rnc > 0)
+    .sort((x, y) => y.a.of - x.a.of)
+  const maxOf = Math.max(...rows.map((x) => x.a.of), 1)
+  const maxRnc = Math.max(...rows.map((x) => x.a.rnc), 1)
+  const withOf = rows.filter((x) => x.a.of > 0)
+  const best = withOf.length
+    ? withOf.reduce((a, b) => ((a.a.taxa ?? Infinity) <= (b.a.taxa ?? Infinity) ? a : b))
+    : null
 
   return (
     <Card className="omp-card-hover">
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5 text-base">
-          {title}
-          <InfoTip text={info} />
+          Máquinas — trabalhos e RNC
+          <InfoTip text="Todas as máquinas do período, ordenadas por OF. A barra larga mostra os OF na mesma escala para todas; a barra fina vermelha mostra as RNC numa escala própria (mais curta de propósito). O badge é a taxa RNC/100 OF e a estrela assinala a melhor taxa." />
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {items.length === 0 ? (
+      <CardContent className="space-y-3.5">
+        {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sem dados.</p>
         ) : (
-          items.map((x) => {
-            const value = metric === 'of' ? x.a.of : x.a.rnc
-            const tone = colorByTone ? taxaTone(x.a.taxa) : 'neutral'
-            const barColor = colorByTone ? toneVar[tone] : 'var(--primary)'
+          rows.map((x) => {
+            const tone = taxaTone(x.a.taxa)
+            const isBest = best !== null && x.m.id === best.m.id
+            const rncW = x.a.rnc ? Math.max(5, (x.a.rnc / maxRnc) * 42) : 0
             return (
-              <div key={x.m.id}>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-1.5 font-medium">
+              <div key={x.m.id} className="flex items-center gap-3">
+                <div className="w-[84px] shrink-0 text-sm">
+                  <span className="flex items-center gap-1 font-semibold">
                     {x.m.name}
-                    {x.m.status === 'discontinued' && (
-                      <span className="text-[10px] font-normal text-destructive/80">descontinuada</span>
-                    )}
                     <InfoTip text={machineInfo(db, x.m.id)} label={`O que é ${x.m.name}`} />
                   </span>
-                  <span className="text-muted-foreground tabular-nums">
-                    {value} · {fmt(x.a.taxa)}
-                  </span>
+                  {isBest && (
+                    <span
+                      className="block text-[10px] font-semibold whitespace-nowrap"
+                      style={{ color: 'var(--success)' }}
+                    >
+                      ★ melhor taxa
+                    </span>
+                  )}
+                  {x.m.status === 'discontinued' && (
+                    <span className="block text-[10px] text-destructive/80">descontinuada</span>
+                  )}
                 </div>
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="min-w-0 flex-1 space-y-1">
                   <div
-                    className="omp-bar h-full rounded-full"
-                    style={{ width: `${Math.max(4, (value / max) * 100)}%`, background: barColor }}
-                  />
+                    className="omp-bar flex h-5 min-w-[34px] items-center justify-end rounded-md pr-2 text-[11px] font-semibold text-white tabular-nums"
+                    style={{
+                      width: `${Math.max(7, (x.a.of / maxOf) * 100)}%`,
+                      background: sectionColor(x.m.sectionId),
+                    }}
+                  >
+                    {x.a.of}
+                  </div>
+                  {x.a.rnc > 0 ? (
+                    <div
+                      className="omp-bar flex h-2.5 min-w-[20px] items-center justify-end rounded pr-1 text-[9px] font-semibold text-white tabular-nums"
+                      style={{ width: `${rncW}%`, background: 'var(--destructive)' }}
+                    >
+                      {x.a.rnc}
+                    </div>
+                  ) : (
+                    <span className="text-[11px] font-semibold" style={{ color: 'var(--success)' }}>
+                      0 RNC ✓
+                    </span>
+                  )}
                 </div>
+                <span
+                  className="w-[72px] shrink-0 rounded-md border px-1.5 py-1 text-center text-xs font-semibold tabular-nums"
+                  style={{
+                    color: toneVar[tone],
+                    borderColor: `color-mix(in srgb, ${toneVar[tone]} 40%, transparent)`,
+                    background: `color-mix(in srgb, ${toneVar[tone]} 10%, transparent)`,
+                  }}
+                >
+                  {fmt(x.a.taxa)}
+                </span>
               </div>
             )
           })
@@ -630,23 +652,8 @@ export function Dashboard({ db, assistantOn }: { db: Db; assistantOn: boolean })
         />
       </div>
 
-      <div className="omp-in grid gap-4 md:grid-cols-2" style={{ animationDelay: '240ms' }}>
-        <MachineRanking
-          db={db}
-          title="Top 3 máquinas com mais trabalho"
-          info="As máquinas que mais OF produziram no período."
-          metric="of"
-          records={records}
-          colorByTone={false}
-        />
-        <MachineRanking
-          db={db}
-          title="Piores 3 máquinas por RNC"
-          info="As máquinas com mais defeitos no período. A cor da barra segue a taxa: verde = 0, âmbar até 5%, vermelho acima."
-          metric="rnc"
-          records={records}
-          colorByTone
-        />
+      <div className="omp-in" style={{ animationDelay: '240ms' }}>
+        <MachineOverview db={db} records={records} />
       </div>
 
       <Card className="omp-in omp-card-hover" style={{ animationDelay: '300ms' }}>
