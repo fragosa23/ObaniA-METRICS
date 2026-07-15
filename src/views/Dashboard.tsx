@@ -74,11 +74,14 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
   const max = Math.max(...values)
   const min = Math.min(...values)
   const range = max - min || 1
-  const pts = values
-    .map((v, i) => `${((i / (values.length - 1)) * w).toFixed(1)},${(h - ((v - min) / range) * (h - 6) - 3).toFixed(1)}`)
-    .join(' ')
+  const points = values.map((v, i) => ({
+    x: (i / (values.length - 1)) * w,
+    y: h - ((v - min) / range) * (h - 6) - 3,
+  }))
+  const pts = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+  const last = points.at(-1)!
   return (
-    <svg width={w} height={h} className="overflow-visible" aria-hidden="true">
+    <svg width={w} height={h} className="overflow-visible" role="img" aria-label="Evolução mensal do indicador">
       <polyline
         points={pts}
         fill="none"
@@ -90,6 +93,7 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
         className="omp-spark"
         opacity={0.9}
       />
+      <circle cx={last.x} cy={last.y} r="3" fill={color} stroke="var(--card)" strokeWidth="1.5" />
     </svg>
   )
 }
@@ -438,30 +442,31 @@ export function Dashboard({ db, assistantOn }: { db: Db; assistantOn: boolean })
   const periodLabel = isYear ? `${year}` : `${MONTHS[month!]} ${year}`
   const targetTaxa = db.settings?.targetTaxa ?? 2
 
-  // Período anterior (mês com dados imediatamente antes, ou ano anterior com dados).
-  const { prevAgg, prevLabel } = useMemo(() => {
-    if (isYear) {
-      const years = [...new Set(allRecords.map((r) => r.year))].sort((x, y) => x - y)
-      const i = years.indexOf(year)
-      if (i <= 0) return { prevAgg: null, prevLabel: '' }
-      const py = years[i - 1]
-      return { prevAgg: aggregate(allRecords.filter((r) => r.year === py)), prevLabel: `vs ${py}` }
+  // Tendência mensal: compara sempre o último mês visível com o mês anterior.
+  // No ano inteiro usa os dois últimos meses com dados; num mês específico usa até esse mês.
+  const { trendCurrent, trendPrevious, prevLabel } = useMemo(() => {
+    const yearRecords = recordsFor(db, { year })
+    const visibleMonths = [...new Set(yearRecords.map((r) => r.month))]
+      .filter((m) => isYear || m <= (month ?? 11))
+      .sort((x, y) => x - y)
+    if (visibleMonths.length < 2) {
+      return { trendCurrent: null, trendPrevious: null, prevLabel: '' }
     }
-    const keys = [...new Set(allRecords.map((r) => r.year * 12 + r.month))].sort((x, y) => x - y)
-    const i = keys.indexOf(year * 12 + (month ?? 0))
-    if (i <= 0) return { prevAgg: null, prevLabel: '' }
-    const pk = keys[i - 1]
-    const pm = ((pk % 12) + 12) % 12
+    const currentMonth = visibleMonths.at(-1)!
+    const previousMonth = visibleMonths.at(-2)!
     return {
-      prevAgg: aggregate(allRecords.filter((r) => r.year * 12 + r.month === pk)),
-      prevLabel: `vs ${MONTHS[pm]}`,
+      trendCurrent: aggregate(yearRecords.filter((r) => r.month === currentMonth)),
+      trendPrevious: aggregate(yearRecords.filter((r) => r.month === previousMonth)),
+      prevLabel: `${MONTHS[currentMonth]} vs ${MONTHS[previousMonth]}`,
     }
-  }, [allRecords, isYear, year, month])
+  }, [db, isYear, year, month])
 
   // Séries mensais do ano selecionado (para as sparklines).
   const spark = useMemo(() => {
     const yearRecords = recordsFor(db, { year })
-    const keys = [...new Set(yearRecords.map((r) => r.month))].sort((x, y) => x - y)
+    const keys = [...new Set(yearRecords.map((r) => r.month))]
+      .filter((m) => isYear || m <= (month ?? 11))
+      .sort((x, y) => x - y)
     const per = keys.map((m) => aggregate(yearRecords.filter((r) => r.month === m)))
     return {
       of: per.map((p) => p.of),
@@ -469,7 +474,7 @@ export function Dashboard({ db, assistantOn }: { db: Db; assistantOn: boolean })
       taxa: per.map((p) => p.taxa ?? 0),
       ofRnc: per.map((p) => p.ofRnc ?? 0),
     }
-  }, [db, year])
+  }, [db, isYear, year, month])
 
   // Alertas: pior máquina ATIVA por taxa; descontinuadas ficam de fora (com nota).
   const byMachine = db.machines
@@ -496,8 +501,6 @@ export function Dashboard({ db, assistantOn }: { db: Db; assistantOn: boolean })
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [db, periodKey],
   )
-
-  const taxaOk = a.taxa !== null && a.taxa <= targetTaxa
 
   return (
     <div className="space-y-5">
@@ -563,7 +566,7 @@ export function Dashboard({ db, assistantOn }: { db: Db; assistantOn: boolean })
           info="Ordens de Fabrico: número total de trabalhos produzidos no período."
           value={a.of}
           format={(v) => Math.round(v).toLocaleString('pt-PT')}
-          delta={deltaOf(a.of, prevAgg ? prevAgg.of : null, true)}
+          delta={deltaOf(trendCurrent?.of ?? 0, trendPrevious?.of ?? null, true)}
           vsLabel={prevLabel}
           spark={spark.of}
           sparkColor="var(--primary)"
@@ -573,7 +576,7 @@ export function Dashboard({ db, assistantOn }: { db: Db; assistantOn: boolean })
           info="Registos de Não Conformidade: defeitos ou problemas de qualidade detetados."
           value={a.rnc}
           format={(v) => Math.round(v).toLocaleString('pt-PT')}
-          delta={deltaOf(a.rnc, prevAgg ? prevAgg.rnc : null, false)}
+          delta={deltaOf(trendCurrent?.rnc ?? 0, trendPrevious?.rnc ?? null, false)}
           vsLabel={prevLabel}
           spark={spark.rnc}
           sparkColor="var(--destructive)"
@@ -583,29 +586,17 @@ export function Dashboard({ db, assistantOn }: { db: Db; assistantOn: boolean })
           info="Defeitos por cada 100 trabalhos: (RNC ÷ OF) × 100. Quanto menor, melhor."
           value={a.taxa}
           format={(v) => `${v.toFixed(2).replace('.', ',')}%`}
-          delta={deltaOf(a.taxa ?? 0, prevAgg && prevAgg.taxa !== null ? prevAgg.taxa : null, false, true)}
+          delta={deltaOf(trendCurrent?.taxa ?? 0, trendPrevious?.taxa ?? null, false, true)}
           vsLabel={prevLabel}
           spark={spark.taxa}
           sparkColor="var(--warning)"
-          extra={
-            <span
-              className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap"
-              style={{
-                color: taxaOk ? 'var(--success)' : 'var(--destructive)',
-                borderColor: `color-mix(in srgb, ${taxaOk ? 'var(--success)' : 'var(--destructive)'} 40%, transparent)`,
-              }}
-              title="Meta definida em Configurações"
-            >
-              Meta ≤ {String(targetTaxa).replace('.', ',')}%
-            </span>
-          }
         />
         <Kpi
           label="OF por RNC"
           info="Quantos trabalhos são feitos por cada defeito. Quanto maior, melhor."
           value={a.ofRnc}
           format={(v) => v.toFixed(1).replace('.', ',')}
-          delta={deltaOf(a.ofRnc ?? 0, prevAgg && prevAgg.ofRnc !== null ? prevAgg.ofRnc : null, true)}
+          delta={deltaOf(trendCurrent?.ofRnc ?? 0, trendPrevious?.ofRnc ?? null, true)}
           vsLabel={prevLabel}
           spark={spark.ofRnc}
           sparkColor="var(--success)"
